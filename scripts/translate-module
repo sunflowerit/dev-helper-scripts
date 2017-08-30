@@ -1,7 +1,7 @@
 #!/bin/bash
 if [ ! -d "../../../parts" ]; then
   echo "You have to run this from within a parts/xxxxx/yyyyy (module) folder"
-  return
+  exit
 fi
 module=${PWD##*/}
 db=$(cat ../../../etc/odoo.cfg |grep db_name | sed -nr 's/^.*=\s//p' | awk '{$1=$1};1')
