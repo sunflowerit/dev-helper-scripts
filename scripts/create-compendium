@@ -1,0 +1,4 @@
+#!/bin/bash
+find $HOME/Code/odoo -name nl.po | xargs msgcat --use-first | msgattrib \
+--translated --no-fuzzy -o $HOME/odoo_nl.po
+
