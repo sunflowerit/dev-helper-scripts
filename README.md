@@ -1,6 +1,6 @@
 To install bash scripts:
 
-    cp scripts/* $HOME/bin
+    ln -sf $(pwd)/scripts/* $HOME/bin
 
 To install erppeek:
 

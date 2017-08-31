@@ -11,8 +11,8 @@ dir=$(mktemp -d)
   --i18n-export=$dir/$module.po \
   -l nl -d $db --modules=$module
 /bin/cp -f i18n/nl.po $dir/$module.old.po
-msgmerge --compendium $HOME/odoo_nl.po \
+msgmerge --no-fuzzy-matching --compendium $HOME/odoo_nl.po \
   -o $dir/$module.new.po \
-  $dir/$module.old.po $dir/$module.po
+  $dir/$module.po $dir/$module.old.po
 /bin/cp -f $dir/$module.new.po i18n/nl.po
 
