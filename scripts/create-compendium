@@ -1,4 +1,8 @@
 #!/bin/bash
-find $HOME/Code/odoo -name nl.po | xargs msgcat --use-first | msgattrib \
+if [ ! -d "../../../parts" ]; then
+  echo "You have to run this from within a parts/xxxxx/yyyyy (module) folder"
+  exit
+fi
+find ../../odoo -name nl.po | xargs msgcat --use-first | msgattrib \
 --translated --no-fuzzy -o $HOME/odoo_nl.po
 
