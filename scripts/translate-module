@@ -10,9 +10,14 @@ dir=$(mktemp -d)
   --log-level=error \
   --i18n-export=$dir/$module.po \
   -l nl -d $db --modules=$module
-/bin/cp -f i18n/nl.po $dir/$module.old.po
-msgmerge --no-fuzzy-matching --compendium $HOME/odoo_nl.po \
-  -o $dir/$module.new.po \
-  $dir/$module.po $dir/$module.old.po
-/bin/cp -f $dir/$module.new.po i18n/nl.po
+if [ ! -f "i18n/nl.po" ]; then
+  mkdir -p i18n
+  /bin/cp -f $dir/$module.po i18n/nl.po
+else
+  /bin/cp -f i18n/nl.po $dir/$module.old.po
+  msgmerge --no-fuzzy-matching --compendium $HOME/odoo_nl.po \
+    -o $dir/$module.new.po \
+    $dir/$module.po $dir/$module.old.po
+  /bin/cp -f $dir/$module.new.po i18n/nl.po
+fi
 
