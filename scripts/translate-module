@@ -5,6 +5,7 @@ if [ ! -d "../../../parts" ]; then
 fi
 module=${PWD##*/}
 db=$(cat ../../../etc/odoo.cfg |grep db_name | sed -nr 's/^.*=\s//p' | awk '{$1=$1};1')
+echo Database is... $db
 dir=$(mktemp -d)
 ../../../bin/start_odoo \
   --log-level=error \
@@ -16,8 +17,8 @@ if [ ! -f "i18n/nl.po" ]; then
 else
   /bin/cp -f i18n/nl.po $dir/$module.old.po
   msgmerge --no-fuzzy-matching --compendium $HOME/odoo_nl.po \
-    -o $dir/$module.new.po \
-    $dir/$module.po $dir/$module.old.po
-  /bin/cp -f $dir/$module.new.po i18n/nl.po
+    -U \
+    $dir/$module.old.po $dir/$module.po
+  /bin/cp -f $dir/$module.old.po i18n/nl.po
 fi
 
