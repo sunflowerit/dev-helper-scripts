@@ -6,3 +6,8 @@ For scripts like the issue script, that use erppeek:
 
     pip install --user erppeek pyOpenSSL ndg-httpsclient pyasn1
     cp erppeek.ini.template $HOME/.erppeek.ini  # and edit it
+
+For pylint, install:
+
+    pip install --upgrade --pre pylint-odoo
+
