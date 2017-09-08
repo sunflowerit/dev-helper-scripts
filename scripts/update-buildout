@@ -1,0 +1,19 @@
+#!/bin/bash
+if [ ! -f "buildout.cfg" ]; then
+  echo "You have to run this from within a buildout folder"
+  exit
+fi
+dir=$(mktemp -d)
+oe-get-buildout-versions.sh . --skip-garbage-collection > $dir/buildout.cfg
+RESULT=$?
+if [ $RESULT -eq 0 ]; then
+  echo Successfully updated buildout.cfg.
+  echo To see the changes: 'git diff'
+  echo To revert the changes: 'git checkout -- buildout.cfg'
+else
+  echo Failed to generate buildout.cfg
+  exit
+fi
+cp -f $dir/buildout.cfg buildout.cfg
+
+
