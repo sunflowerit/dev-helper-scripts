@@ -1,8 +1,8 @@
-#!/bin/bash
+#!/bin/sh
 
 # configuration
 # stop on any error
-set -e
+#set -e
 # separator
 IFS="
 "
@@ -20,7 +20,7 @@ while [ $# -gt 0 ]; do
         GARBAGE_COLLECTION=0
         ;;
         *)
-        if [[ $key != -* ]]; then
+        if echo $key | grep -Evq '^-'; then
            ARG1=$key
         fi
         ;;
@@ -57,13 +57,14 @@ if [ ! -d $EGG_DIR ] || [ ! -d $PART_DIR ] || [ ! -x $START_SCRIPT ]; then
     exit 1
 fi
 
+# odoo version, default to 8.0 if not found
 ODOO_VERSION="$(grep '^oca_branch_version.*=.*'\
     $BUILDOUT_INCLUDE | cut -d= -f2 | tr -d '[[:space:]]')"
-# default to 8.0 if not found
 if [ -z "$ODOO_VERSION" ]; then
     ODOO_VERSION="8.0"
-    echoerr couldn\'t find oca_branch_version, defaulting to $ODOO_VERSION >&2
+    echoerr couldn\'t find oca_branch_version, defaulting to $ODOO_VERSION
 fi
+
 # mapping from parts to branches
 PART_BRANCH=$(mktemp)
 
@@ -81,8 +82,7 @@ get_branch_params()
     # branch our commit lives
     params=$(get_field "$1" 6)
     if echo $params | grep -q 'branch='; then
-        branch=$(echo $params | grep -qEo 'branch=[^,]+' |\
-            cut -c -7)
+        branch=$(echo $params | grep -Eo 'branch=[^,]+' | sed s/^.*\=//)
     else
         branch=$(get_field "$line" 5 |\
             sed 's/${buildout:oca_branch_version}/'$ODOO_VERSION'/g')
@@ -112,11 +112,15 @@ handle_source_line()
         abspath=$BUILDOUT_DIR/parts/$path
         echo "parts/$path|$branch" >> $PART_BRANCH
     fi
+    # fetch the base branch if it's not there
+    exists=$(git -C $abspath show-ref refs/heads/$branch)
+    if [ ! -n "$exists" ]; then
+        git -C $abspath fetch origin $branch:$branch
+    fi
     # get merge head
     hash=$(git -C $abspath show-branch --merge-base \
         origin/$branch \
-        $branch |\
-        cut -c -7)
+        $branch | cut -c -7)
     if [ ! -z "$hash" ]; then
         echo "$vcs $url $path $hash $params"
         echo "$path|$branch" >> $PART_BRANCH
@@ -137,7 +141,8 @@ for line in $(cat $BUILDOUT_CONFIG); do
         echo "$line"
         continue
     fi
-    # find [section_header] lines
+
+    # handle [section_header] lines
     if echo $line | grep -q '^[[][^]]*]'; then
         current_section=$(echo $line | tr -d '[]')
         # for the odoo section, we slip in the version line if not already done
@@ -148,8 +153,10 @@ for line in $(cat $BUILDOUT_CONFIG); do
                 $(handle_version_line $(grep '^version *=' $BUILDOUT_INCLUDE)))
 
         fi
-    # could also start a addons += block
-    elif echo $line | grep -qE '^[^#].*+{0,1}='; then
+
+    # start of $current_var block
+    # (eg. "addons =" or "addons +=" or "merges +=")
+    elif echo $line | grep -Eq '.*\=[[:space:]]*$'; then
         current_var=$(get_field "$line" 1)
         # for addons, slip in web, server-tools and therp-addons if necessary
         if [ "$current_var" = "addons" ]; then
@@ -162,6 +169,7 @@ for line in $(cat $BUILDOUT_CONFIG); do
                 fi
             done
         fi
+
     # an indented block from $current_var
     elif [ -n "$current_var" ] && echo $line | grep -qE '^[[:space:]]+|#'; then
         case $current_var in
@@ -175,8 +183,7 @@ for line in $(cat $BUILDOUT_CONFIG); do
                             print_line="no"
                         fi
                     ;;
-                    # we ignore bazaar, doesn't seem worth the effort for a
-                    # dying vcs
+                    # we dont support bazaar
                 esac
             ;;
             merges)
@@ -229,7 +236,7 @@ for line in $(cat $BUILDOUT_CONFIG); do
         echo "$line"
     fi
 done
-echo '[versions]'
+printf '\n[versions]\n'
 for dir in $EGG_DIR/*.egg; do
     if [ ! -d "$dir" ]; then
         continue
