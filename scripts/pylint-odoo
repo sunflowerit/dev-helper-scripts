@@ -1,7 +1,10 @@
 #!/bin/bash
 if [ -d "../../parts" ]; then
   pylint --rcfile=../../.pylint.cfg --init-hook='import sys; sys.path.append("../odoo")' --load-plugins=pylint_odoo *
+elif [ -d "../../../parts" ]; then
+  pylint --rcfile=../../../.pylint.cfg --init-hook='import sys; sys.path.append("../../odoo")' --load-plugins=pylint_odoo .
 else
   echo "You have to run this from within a parts/xxxxx (repo) folder"
+  echo "Or from within a parts/xxxxx/xxxxx (module) folder"
   exit
 fi
