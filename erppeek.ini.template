@@ -1,8 +1,0 @@
-[default]
-scheme = https
-host = odoo.myserver.domain
-port = 443
-database = 
-username = 
-password = 
-

@@ -1,0 +1,41 @@
+#!/bin/bash
+if [ ! -d "../../../parts" ]; then
+  echo "You have to run this from within a parts/xxxxx/yyyyy (module) folder"
+  exit
+fi
+
+get_parm_from_odoocfg() {
+  odoocfgparm=$(cat ../../../etc/odoo.cfg |grep $1 | sed -nr 's/^.*=\s//p' | awk '{$1=$1};1')
+}
+
+# choose database
+get_parm_from_odoocfg db_name && db_name="$odoocfgparm"
+get_parm_from_odoocfg db_password && db_password="$odoocfgparm"
+get_parm_from_odoocfg db_user && db_username="$odoocfgparm"
+
+# parse command line options
+OPTIONS=d:
+PARSED=$(getopt --options=$OPTIONS --name "$0" -- "$@")
+if [[ $? -ne 0 ]]; then
+    exit 2
+fi
+eval set -- "$PARSED"
+while true; do
+    case "$1" in
+        -d)
+            db_name="$2"
+            shift 2
+            ;;
+        --)
+            shift
+            break
+            ;;
+        *)
+            echo "Programming error."
+            exit 3
+    esac
+done
+
+# exec psql
+PGPASSWORD="$db_password" psql -t $db_name -h localhost -U "$db_username"
+

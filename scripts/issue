@@ -1,0 +1,92 @@
+#!/usr/bin/env python
+
+import contextlib
+import odoorpc
+import netrc
+import os
+import requests
+import ssl
+import subprocess
+import sys
+import urllib2
+import warnings
+
+# check if running from a module folder
+if not os.path.exists("../../../parts"):
+    print "You have to run this from within a " \
+          "parts/xxxxx/yyyyy (module) folder"
+    sys.exit(1)
+
+info = netrc.netrc()
+auth = info.authenticators('odoosunflower')
+username, host, password = auth
+if not username or not password:
+    print "In your $HOME/.netrc file place:"
+    print "machine odoosunflower login myuser password mypassword"
+    sys.exit(0)
+
+# translate database name to allowed project names,
+restrict_projects = None
+db = subprocess.check_output('cat ../../../etc/odoo.cfg |grep db_name | sed -nr \'s/^.*=\s//p\' | awk \'{$1=$1};1\'', shell=True).strip()
+print 'Database is...', db
+if 'sunflower' in db:
+    restrict_projects = ['Sunflower IT', 'Sunflower IT external']
+elif 'freshfilter' in db:
+    restrict_projects = ['Giraf Metaal', 'FF Odoo']
+
+# create a context to connect without checking for https cert
+ctx = ssl.create_default_context()
+ctx.check_hostname = False
+ctx.verify_mode = ssl.CERT_NONE
+opener = urllib2.build_opener(urllib2.HTTPSHandler(context=ctx))
+#opener.addheaders = [('Referer', 'http://example.org/blah.html')]
+#pwd_mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
+#pwd_mgr.add_password(None, "http://example.net", "userName", "passWord")
+#auth_handler = urllib.request.HTTPBasicAuthHandler(pwd_mgr)
+#opener = urllib.request.build_opener(auth_handler)
+
+# connect to server
+odoo = odoorpc.ODOO('sunflower.1systeem.nl',
+    protocol='jsonrpc+ssl', port=443, opener=opener)
+odoo.login('odoo_sunflower', username, password)
+
+# list higher priority issues belonging to us,
+# and to the current project
+if 'project.issue' in odoo.env:
+    issue_obj = odoo.env['project.issue']
+    issue_domain = [
+            ('stage_id.name', 'in', [
+                'Ready for dev',
+                'Development',
+                'Code Review'
+            ]),
+            ('user_id.id', '=', odoo.env.uid),
+            ('priority', '>=', 2)
+        ]
+    if restrict_projects:
+        issue_domain.append(('project_id.name', 'in', 
+                restrict_projects))
+    issue_ids = issue_obj.search(issue_domain,
+            order='stage_id asc')
+issues = issue_obj.browse(issue_ids)
+for issue in issues:
+    print issue.stage_id.name + " : " + str(issue.id) + " : " + issue.name
+
+#print(user.name)            # name of the user connected
+#print(user.company_id.name) # the name of its company
+
+# Simple 'raw' query
+#user_data = odoo.execute('res.users', 'read', [user.id])
+#print(user_data)
+
+# Use all methods of a model
+#if 'sale.order' in odoo.env:
+#    Order = odoo.env['sale.order']
+#    order_ids = Order.search([])
+#    for order in Order.browse(order_ids):
+#        print(order.name)
+#        products = [line.product_id.name for line in order.order_line]
+#        print(products)
+
+# Update data through a record
+#user.name = "Brian Jones"
