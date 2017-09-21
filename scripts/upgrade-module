@@ -1,7 +1,13 @@
 #!/bin/bash
-if [ $# -eq 0 ]; then
+if [ -d "../../../parts" ]; then
+  module=${PWD##*/}
+  odoo=../../../bin/start_odoo
+elif [ $# -eq 0 ]; then
   echo "Usage: upgrade-module [module-name]"
+  exit
 else
-  bin/start_odoo --xmlrpc-port=18069 -u $1 --stop-after-init
+  module=$1
+  odoo=bin/start_odoo
 fi
+$odoo --xmlrpc-port=18069 -u $module --stop-after-init
 
