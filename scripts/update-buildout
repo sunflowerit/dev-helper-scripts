@@ -12,7 +12,7 @@ if [ ! -f $BUILDOUT_FILE ]; then
   exit 3
 fi
 dir=$(mktemp -d)
-oe-get-buildout-versions.sh . -f "$BUILDOUT_FILE" --skip-eggs --skip-garbage-collection > $dir/buildout.cfg
+oe-get-buildout-versions.sh . -v -f "$BUILDOUT_FILE" --skip-eggs --skip-garbage-collection > $dir/buildout.cfg
 RESULT=$?
 if [ $RESULT -eq 0 ]; then
   echo Successfully updated buildout.cfg.
