@@ -10,77 +10,379 @@ import subprocess
 import sys
 import urllib2
 import warnings
+import getopt
+import re
+import argparse
+import requests
+
+import json
+
+# TOGGL API
+# pip install togglwrapper
+# iso8601 module
+# pytz module
+# requests
+# python-dateutil
+# add toggl and togglrc files in home
+
+parser = argparse.ArgumentParser()
+parser.add_argument("function", nargs="?",
+                    help="Function to be performed on issue")
+parser.add_argument("issuenumber", nargs="?", type=int, help="Issue Number")
+parser.add_argument("value", nargs="?", help="Value passed on function")
+parser.add_argument("-al", "--allopenissues", action="store_true",
+                    help="all open issues for all users")
+parser.add_argument("-l", "--myissuelist", action="store_true",
+                    help="all open issues for me")
+parser.add_argument("-push", "--push", action="store_true",
+                    help="save and push all changes")
+parser.add_argument("-test", "--test", action="store_true",
+                    help="save and test on server, will run buildout and upgrade scripts")
+args = parser.parse_args()
 
 # check if running from a module folder
-if not os.path.exists("../../../parts"):
-    print "You have to run this from within a " \
-          "parts/xxxxx/yyyyy (module) folder"
-    sys.exit(1)
+if not os.path.exists("../../parts"):
+  print "You have to run this from within a " \
+        "parts/xxxxx/yyyyy (module) folder"
+  sys.exit(1)
 
 info = netrc.netrc()
 auth = info.authenticators('odoosunflower')
 username, host, password = auth
 if not username or not password:
-    print "In your $HOME/.netrc file place:"
-    print "machine odoosunflower login myuser password mypassword"
-    sys.exit(0)
+  print "In your $HOME/.netrc file place:"
+  print "machine odoosunflower login myuser password mypassword"
+  sys.exit(0)
 
 # translate database name to allowed project names,
 restrict_projects = None
-db = subprocess.check_output('cat ../../../etc/odoo.cfg |grep db_name | sed -nr \'s/^.*=\s//p\' | awk \'{$1=$1};1\'', shell=True).strip()
+db = subprocess.check_output(
+  'cat ../../etc/odoo.cfg |grep db_name | sed -nr \'s/^.*=\s//p\' | awk \'{$1=$1};1\'',
+  shell=True).strip()
 print 'Database is...', db
 if 'sunflower' in db:
-    restrict_projects = ['Sunflower IT', 'Sunflower IT external']
+  restrict_projects = ['Sunflower IT', 'Sunflower IT external']
 elif 'freshfilter' in db:
-    restrict_projects = ['Giraf Metaal', 'FF Odoo']
+  restrict_projects = ['Giraf Metaal', 'FF Odoo']
 
 # create a context to connect without checking for https cert
 ctx = ssl.create_default_context()
 ctx.check_hostname = False
 ctx.verify_mode = ssl.CERT_NONE
 opener = urllib2.build_opener(urllib2.HTTPSHandler(context=ctx))
-#opener.addheaders = [('Referer', 'http://example.org/blah.html')]
-#pwd_mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
-#pwd_mgr.add_password(None, "http://example.net", "userName", "passWord")
-#auth_handler = urllib.request.HTTPBasicAuthHandler(pwd_mgr)
-#opener = urllib.request.build_opener(auth_handler)
+# opener.addheaders = [('Referer', 'http://example.org/blah.html')]
+# pwd_mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
+# pwd_mgr.add_password(None, "http://example.net", "userName", "passWord")
+# auth_handler = urllib.request.HTTPBasicAuthHandler(pwd_mgr)
+# opener = urllib.request.build_opener(auth_handler)
 
 # connect to server
 odoo = odoorpc.ODOO('sunflower.1systeem.nl',
-    protocol='jsonrpc+ssl', port=443, opener=opener)
+                    protocol='jsonrpc+ssl', port=443, opener=opener)
 odoo.login('odoo_sunflower', username, password)
 
-# list higher priority issues belonging to us,
-# and to the current project
-if 'project.issue' in odoo.env:
+STAGES = ['Ready for dev', 'Development', 'Code Review']
+
+ISSUE_STAGE_DOMAIN = [
+  ('stage_id.name', 'in', ['Ready for dev', 'Development', 'Code Review']),
+]
+
+ISSUE_MIN_PRIORITY_DOMAIN = [('priority', '>=', 2)]
+
+
+def check_if_issue_exists(issue_number):
+  if 'project.issue' in odoo.env:
     issue_obj = odoo.env['project.issue']
-    issue_domain = [
-            ('stage_id.name', 'in', [
-                'Ready for dev',
-                'Development',
-                'Code Review'
-            ]),
-            ('user_id.id', '=', odoo.env.uid),
-            ('priority', '>=', 2)
-        ]
-    if restrict_projects:
-        issue_domain.append(('project_id.name', 'in', 
-                restrict_projects))
+    issue_domain = [('id', '=', issue_number)]
+    issue_id = issue_obj.search(issue_domain)
+  if not issue_id:
+    print "Issue of ID {} not found".format(issue_number)
+    return False
+  else:
+    issue = issue_obj.browse(issue_id)
+    if issue.stage_id.name in ['Done', 'Cancelled', 'On Hold']:
+      print "Issue {} is in stage {}".format(issue.id, issue.stage_id.name)
+    else:
+      issue = issue_obj.browse(issue_id)
+      print "Issue {} exists".format(issue_number)
+      return issue
+
+
+def issue_list(all_open_issues=False):
+  # list higher priority issues belonging to us,
+  # and to the current project
+  if 'project.issue' in odoo.env:
+    issue_obj = odoo.env['project.issue']
+    issue_domain = ISSUE_STAGE_DOMAIN + ISSUE_MIN_PRIORITY_DOMAIN
+    if not all_open_issues:
+      issue_domain.append(('user_id.id', '=', odoo.env.uid))
+      if restrict_projects:
+        issue_domain.append(('project_id.name', 'in',
+                             restrict_projects))
     issue_ids = issue_obj.search(issue_domain,
-            order='stage_id asc')
-issues = issue_obj.browse(issue_ids)
-for issue in issues:
+                                 order='stage_id asc')
+  issues = issue_obj.browse(issue_ids)
+  return issues
+
+
+def set_git_for_issue(issue):
+  required_branch = "8.0-{0}-{1}".format(
+    issue.id,
+    issue.name.replace(" ", "-").lower()
+  )
+  current_branch = subprocess.check_output('git rev-parse --abbrev-ref HEAD',
+                                           shell=True).strip()
+  git_branches = subprocess.check_output('git branch -a', shell=True).strip()
+  ready_msg = "Issue Git is ready for developement"
+
+  # git pull if current branch = required branch
+  if current_branch == required_branch:
+    # if current branch is in remote
+    if 'remotes/origin/' + current_branch in git_branches:
+      process = subprocess.Popen(["git", "pull", "origin", required_branch],
+                                 stdout=subprocess.PIPE)
+      output = process.communicate()[0]
+      print output
+    else:
+      print "Current branch is in local only, 'issue push [num]' or " \
+            "'issue finish [num]' will push local branch.\n{}".format(ready_msg)
+      # if current branch is in local only
+
+
+  # check if required branch is in git_branches and checkout to it
+  elif required_branch in git_branches:
+    # required branch is in local branches
+    process = subprocess.Popen(["git", "checkout", required_branch],
+                               stdout=subprocess.PIPE)
+    output = process.communicate()[0]
+    print output
+    print "git checkouted out to required branch from local branches.\n{}".format(
+      ready_msg)
+
+  elif 'remotes/origin/' + required_branch in git_branches:
+    # required branch is in remote branches
+    process = subprocess.Popen(["git", "checkout", required_branch],
+                               stdout=subprocess.PIPE)
+    output = process.communicate()[0]
+    print output
+    print "git checkouted out to required branch from remote branches.\n{}".format(
+      ready_msg)
+
+  elif required_branch not in git_branches and 'remotes/origin/' + required_branch not in git_branches:
+    # required branch is not in git branches, create a new branch
+    process = subprocess.Popen(["git", "checkout", "-b", required_branch,
+                                "origin/8.0".format(required_branch)],
+                               stdout=subprocess.PIPE)
+    output = process.communicate()[0]
+    print output
+    print "git created new branch.\n{}".format(ready_msg)
+  else:
+    print ready_msg
+
+
+def update_issue_stage(issue, stage_name):
+  stage_obj = odoo.env['project.task.type']
+  stage_id = stage_obj.search([('name', '=', stage_name)])
+  stage = stage_obj.browse(stage_id)
+  issue.stage_id = stage[0].id
+  print "Stage of Issue {} has been changed to {}".format(issue.id, stage_name)
+
+
+def has_pylint_errors(issue):
+  changed_files = subprocess.check_output('git diff --name-only',
+                                          shell=True).strip()
+  if changed_files:
+    files = changed_files.splitlines()
+    error_count = 0
+    for file in files:
+      file_path = '../' + file
+      sys.path.append("../../odoo")
+      print "\nCHECKING: {}. \n".format(file_path)
+      script = "pylint --rcfile=../../.pylint.cfg --load-plugins=pylint_odoo {}".format(
+        file_path)
+      p = subprocess.Popen(script, shell=True, stdout=subprocess.PIPE,
+                           stderr=subprocess.STDOUT)
+      for line in p.stdout.readlines():
+        if line:
+          print line, "\n"
+          error_count = error_count + 1
+        else:
+          print "Pylint status of this file is OK"
+    if error_count > 0:
+      return True
+  else:
+    print "No files have changed on this issue"
+
+
+def start_toggl_timer(issue):
+  # pip install togglwrapper
+  from togglwrapper import Toggl
+  toggl = Toggl('9b8fcd5e0f2b37b84ec08878170b3f61')
+  description = "#" + str(issue.id) + ' ' + issue.name + ""
+  workspace_name = "Sunflower IT"
+  workspace_id = 1437120
+  issue_project = issue.project_id.name
+
+  # check workspace exists
+  workspace = toggl.Workspaces.get(workspace_id)
+  project_in_toggle = None
+  # get all projects in the current workspace clients
+  all_projects = toggl.Workspaces.get_projects(workspace_id)
+
+  # match issue project name with toggl project name
+  for project in all_projects:
+    if project['name'] == issue_project:
+      project_in_toggle = project['name']
+  # start toggl timer with workspace and project name
+  # toggl start 'descrition' :'workspace' @ 'project'
+  if project_in_toggle:
+    process = subprocess.Popen([
+      "toggl",
+      "start",
+      "" + description + "",
+      ":" + workspace_name + "",
+      "@" + project_in_toggle + ""
+    ], stdout=subprocess.PIPE)
+    output = process.communicate()[0]
+    print output
+  else:
+    print "No match for Issue Project {project_name} found on toggl projects.".format(
+      issue_project)
+
+
+def stop_toggl_timer():
+  process = subprocess.Popen([
+    "toggl",
+    "stop",
+  ], stdout=subprocess.PIPE)
+  output = process.communicate()[0]
+  print output
+
+
+def continue_toggl_timer(issue):
+  description = "#" + str(issue.id) + ' ' + issue.name + ""
+  process = subprocess.Popen([
+    "toggl",
+    "continue",
+    "" + description + "",
+  ], stdout=subprocess.PIPE)
+  output = process.communicate()[0]
+  print output
+
+def push():
+    #git push
+    process = subprocess.Popen(["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                               stdout=subprocess.PIPE)
+    current_branch = process.communicate()[0]
+    script = "git push origin {}".format(current_branch)
+    output = subprocess.check_output(script, shell=True).strip()
+    print output
+
+def commit(comment=None):
+    if not comment:
+        comment = "Fix"
+    #git commit
+    process = subprocess.Popen(["git", "commit", "-a", "-m", comment],
+        stdout=subprocess.PIPE)
+    output = process.communicate()[0]
+    print output
+
+
+# START APP
+# command: issue -l
+if args.myissuelist or args.allopenissues:
+  if args.allopenissues:
+    issues = issue_list(all_open_issues=True)
+  else:
+    issues = issue_list()
+  if issues:
+    for issue in issues:
+      print issue.stage_id.name + " : " + str(issue.id) + " : " + issue.name
+  else:
+    print "You currently have no issues..."
+
+# command: issue show 123
+elif args.function == 'show' and args.issuenumber:
+  issue = check_if_issue_exists(args.issuenumber)
+  if issue:
     print issue.stage_id.name + " : " + str(issue.id) + " : " + issue.name
 
-#print(user.name)            # name of the user connected
-#print(user.company_id.name) # the name of its company
+  # command: issue start 123
+elif args.function == 'start' and args.issuenumber:
+  print "Checking if issue {} exists...".format(args.issuenumber)
+  issue = check_if_issue_exists(args.issuenumber)
+  print "Setting up git for issue {}...".format(args.issuenumber)
+  set_git_for_issue(issue)
+  print "Updating Stage for issue {}...".format(args.issuenumber)
+  update_issue_stage(issue, 'Development')
+  print "Starting toggl timer for issue #{} ...".format(issue.id)
+  start_toggl_timer(issue)
+  print "Done. Happy Coding!!!"
+
+elif args.function == 'stop' and args.issuenumber:
+  print "Checking if issue {} exists...".format(args.issuenumber)
+  issue = check_if_issue_exists(args.issuenumber)
+  print "Stopping toggl timer for issue #{} ...".format(issue.id)
+  stop_toggl_timer()
+
+elif args.function == 'continue' and args.issuenumber:
+  print "Checking if issue {} exists...".format(args.issuenumber)
+  issue = check_if_issue_exists(args.issuenumber)
+  print "Continuing toggl timer for issue #{} ...".format(issue.id)
+  continue_toggl_timer(issue)
+
+# command: issue stage 123 Development
+elif args.function == 'stage' and args.issuenumber and args.value:
+  issue = check_if_issue_exists(args.issuenumber)
+  if issue:
+    if args.value:
+      stage_name = args.value
+      if stage_name in STAGES:
+        update_issue_stage(issue, stage_name)
+      else:
+        print "Stage of Name {} not found".format(stage_name)
+
+# command: issue qa 123
+elif args.function == 'qa' and args.issuenumber:
+  issue = check_if_issue_exists(args.issuenumber)
+  if issue:
+    has_pylint_errors(issue)
+
+elif args.function == 'push' and args.issuenumber:
+  issue = check_if_issue_exists(args.issuenumber)
+  if issue:
+      push()
+
+elif args.function == 'commit' and args.issuenumber and args.value:
+  issue = check_if_issue_exists(args.issuenumber)
+  if issue:
+      if args.value:
+          commit(args.value)
+      else:
+          print "Argument commit message is missing"
+
+elif args.function == 'save' and args.issuenumber:
+    issue = check_if_issue_exists(args.issuenumber)
+    if issue:
+        if args.push and args.value:
+            commit(args.value)
+            push()
+        # git pull - request
+        if args.push and not args.value:
+            print "Push needs a message for commit before it can push"
+
+        #stop timer
+        stop_toggl_timer()
+
+# print(user.name)            # name of the user connected
+# print(user.company_id.name) # the name of its company
 
 # Simple 'raw' query
-#user_data = odoo.execute('res.users', 'read', [user.id])
-#print(user_data)
+# user_data = odoo.execute('res.users', 'read', [user.id])
+# print(user_data)
 
 # Use all methods of a model
-#if 'sale.order' in odoo.env:
+# if 'sale.order' in odoo.env:
 #    Order = odoo.env['sale.order']
 #    order_ids = Order.search([])
 #    for order in Order.browse(order_ids):
@@ -89,4 +391,4 @@ for issue in issues:
 #        print(products)
 
 # Update data through a record
-#user.name = "Brian Jones"
+# user.name = "Brian Jones"
