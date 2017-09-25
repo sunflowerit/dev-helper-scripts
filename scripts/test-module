@@ -68,7 +68,6 @@ module=${PWD##*/}
 get_parm_from_odoocfg db_password && db_password="$odoocfgparm"
 get_parm_from_odoocfg db_user && db_username="$odoocfgparm"
 installed=$(PGPASSWORD="$db_password" psql -t $db_name -h localhost -U "$db_username" -c "select count(id) from ir_module_module where name = '$module' and state = 'installed';")
-echo $installed
 if [ "$installed" -ne 1 ]; then
   echo Module $module not installed in database $db_name!
   exit
@@ -76,6 +75,10 @@ fi
 
 # run all tests
 odoo=../../../bin/start_odoo
+if [ ! -x "$odoo" ]; then
+  echo Script not found: $(pwd)/$odoo. Cannot run tests.
+  exit
+fi
 for file in $files
 do
   fullpath="$(pwd)/$file"
