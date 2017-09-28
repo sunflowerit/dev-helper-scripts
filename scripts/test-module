@@ -25,9 +25,10 @@ get_parm_from_odoocfg() {
 }
 
 # parse command line options
+withcoverage="yes"
 databaseparm=
 db_name=
-OPTIONS=d:
+OPTIONS=cd:
 PARSED=$(getopt --options=$OPTIONS --name "$0" -- "$@")
 if [[ $? -ne 0 ]]; then
     exit 2
@@ -39,6 +40,10 @@ while true; do
             databaseparm="-d $2"
             db_name="$2"
             shift 2
+            ;;
+        -c)
+            withcoverage="no"
+            shift 1
             ;;
         --)
             shift
@@ -76,13 +81,20 @@ fi
 # run all tests
 odoo=../../../bin/start_odoo
 if [ ! -x "$odoo" ]; then
-  echo Script not found: $(pwd)/$odoo. Cannot run tests.
+  echo Script not found: $odoo. Cannot run tests.
   exit
+fi
+coverage=$(which coverage)
+if [ "$withcoverage" == "yes" ]; then
+  odoo="$coverage run --rcfile=../../../.coveragerc --source $(pwd) $odoo"
 fi
 for file in $files
 do
   fullpath="$(pwd)/$file"
   $odoo --workers=0 $databaseparm --log-level=test --xmlrpc-port=18079 --stop-after-init --test-file $fullpath
 done
+if [ "$withcoverage" == "yes" ]; then
+  $coverage report
+fi
 
 
