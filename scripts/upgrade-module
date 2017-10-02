@@ -20,7 +20,7 @@ else
 fi
 
 # parse command line options
-OPTIONS=d:u:
+OPTIONS=d:u:i:
 PARSED=$(getopt --options=$OPTIONS --name "$0" -- "$@")
 if [[ $? -ne 0 ]]; then
     exit 2
@@ -33,7 +33,11 @@ while true; do
             shift 2
             ;;
         -u)
-            module="$2"
+            moduleparm="-u $2"
+            shift 2
+            ;;
+        -i)
+            moduleparm="-i $2"
             shift 2
             ;;
         --)
@@ -47,5 +51,5 @@ while true; do
 done
 
 # upgrade module
-$odoo --xmlrpc-port=18069 --stop-after-init -u $module $databaseparm
+$odoo --xmlrpc-port=18069 --stop-after-init $moduleparm $databaseparm
 
