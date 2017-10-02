@@ -24,6 +24,12 @@ get_parm_from_odoocfg() {
   odoocfgparm=$(cat ../../../etc/odoo.cfg |grep $1 | sed -nr 's/^.*=\s//p' | awk '{$1=$1};1')
 }
 
+# choose database
+get_parm_from_odoocfg db_name && db_name="$odoocfgparm"
+get_parm_from_odoocfg db_password && db_password="$odoocfgparm"
+get_parm_from_odoocfg db_user && db_username="$odoocfgparm"
+get_parm_from_odoocfg dbfilter && dbfilter="$odoocfgparm"
+
 # parse command line options
 withcoverage="yes"
 databaseparm=
@@ -57,23 +63,34 @@ done
 
 # choose database
 if [ -z "$databaseparm" ]; then
-  get_parm_from_odoocfg db_name && db_name="$odoocfgparm"
-  echo "Run this on a database with demo data."
-  echo "Eg. 'test-module -d ${db_name}_demo'"
-  echo "NOTE: this database needs to have the module installed!"
-  exit
-  # TODO: guess name of demo database if possible
-  # DBNAME=$(psql -t -c "select datname from pg_database where datname like 'vwon_20%';")
+  IFS="
+"
+  whereclause="where datname ilike '%demo%'"
+  DBLIST=$(PGPASSWORD="$db_password" psql -t -c "select datname from pg_database $whereclause" postgres -h localhost -U "$db_username")
+  DBGUESS=$(echo "$DBLIST" | sed 's/^ *//;s/ *$//' | grep -e "$dbfilter")
+  DBCOUNT=$(echo "$DBGUESS" | wc -l)
+  if [ "$DBCOUNT" == "1" ]; then
+    databaseparm="-d $DBGUESS"
+    db_name="$DBGUESS"
+  elif [ "$DBCOUNT" == "0" ]; then
+    echo "No databases found!"
+    exit
+  else
+    echo "Run this on a database with demo data."
+    echo "Eg. 'test-module -d ${db_name}_demo'"
+    echo "NOTE: this database needs to have the module installed!"
+    echo "Databases to choose from:"
+    echo $DBGUESS
+    exit
+  fi
 fi
 
 # module name to test
 module=${PWD##*/}
 
 # Test whether module is installed
-get_parm_from_odoocfg db_password && db_password="$odoocfgparm"
-get_parm_from_odoocfg db_user && db_username="$odoocfgparm"
 installed=$(PGPASSWORD="$db_password" psql -t $db_name -h localhost -U "$db_username" -c "select count(id) from ir_module_module where name = '$module' and state = 'installed';")
-if [ "$installed" -ne 1 ]; then
+if [ $installed -ne 1 ]; then
   echo Module $module not installed in database $db_name!
   exit
 fi
@@ -86,7 +103,8 @@ if [ ! -x "$odoo" ]; then
 fi
 coverage=$(which coverage)
 if [ "$withcoverage" == "yes" ]; then
-  odoo="$coverage run --rcfile=../../../.coveragerc --source $(pwd) $odoo"
+  odoo="$coverage run --source $(pwd) $odoo"
+  #odoo="$coverage run --rcfile=../../../.coveragerc --source $(pwd) $odoo"
 fi
 for file in $files
 do
