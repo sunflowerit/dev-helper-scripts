@@ -109,6 +109,7 @@ fi
 for file in $files
 do
   fullpath="$(pwd)/$file"
+  set -x
   $odoo --workers=0 $databaseparm --log-level=test --xmlrpc-port=18079 --stop-after-init --test-file $fullpath
 done
 if [ "$withcoverage" == "yes" ]; then
