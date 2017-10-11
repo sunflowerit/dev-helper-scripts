@@ -7,20 +7,24 @@ if [[ $? -ne 4 ]]; then
     exit 1
 fi
 
+# odoo options
+odoo_options=--log-level=warn
+
 # prefill default vars based on current folder
+scriptname="$(basename $0)"
 if [ -d "../../../parts" ]; then
   module=${PWD##*/}
-  moduleparm="-u $module"
   odoo=../../../bin/start_odoo
 elif [ $# -eq 0 ]; then
-  echo "Usage: upgrade-module [-u module] [-d db]"
+  echo "Usage: $0 -m [module] [-i] [-u] [-d db]"
   exit
 else
   odoo=bin/start_odoo
 fi
 
 # parse command line options
-OPTIONS=d:u:i:
+moduleparm="-u"
+OPTIONS=d:m:i
 PARSED=$(getopt --options=$OPTIONS --name "$0" -- "$@")
 if [[ $? -ne 0 ]]; then
     exit 2
@@ -28,28 +32,29 @@ fi
 eval set -- "$PARSED"
 while true; do
     case "$1" in
+        -m)
+            module="$2"
+            shift 2
+            ;;
         -d)
             databaseparm="-d $2"
             shift 2
             ;;
-        -u)
-            moduleparm="-u $2"
-            shift 2
-            ;;
         -i)
-            moduleparm="-i $2"
-            shift 2
+            moduleparm="-i"
+            shift
             ;;
         --)
             shift
             break
             ;;
         *)
-            echo "Programming error."
+            echo "Invalid parameter: $1."
             exit 3
     esac
 done
 
-# upgrade module
-$odoo --xmlrpc-port=18069 --stop-after-init $moduleparm $databaseparm
+# install or upgrade module
+set -x
+$odoo $odoo_options --xmlrpc-port=18069 --stop-after-init $moduleparm $module $databaseparm
 
