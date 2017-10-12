@@ -96,24 +96,26 @@ if [ $installed -ne 1 ]; then
 fi
 
 # run all tests
-odoo=../../../bin/start_odoo
+#odoo=$(readlink -f ../../../bin/start_odoo)
+odoo=(../../../bin/start_odoo)
 if [ ! -x "$odoo" ]; then
   echo Script not found: $odoo. Cannot run tests.
   exit
 fi
-coverage=$(which coverage)
-if [ "$withcoverage" == "yes" ]; then
-  odoo="$coverage run --source $(pwd) $odoo"
-  #odoo="$coverage run --rcfile=../../../.coveragerc --source $(pwd) $odoo"
-fi
+#coverage=$(which coverage)
+odooparms=(--workers=0 --log-level=test --xmlrpc-port=18079 --stop-after-init)
 for file in $files
 do
   fullpath="$(pwd)/$file"
-  set -x
-  $odoo --workers=0 $databaseparm --log-level=test --xmlrpc-port=18079 --stop-after-init --test-file $fullpath
+  if [ "$withcoverage" == "yes" ]; then
+    set -x
+    coverage run --source . --rcfile=../../../.coveragerc $odoo $databaseparm "${odooparms[@]}" --test-file $fullpath
+  else
+    set -x
+    $odoo $databaseparm "${odooparms[@]}" --test-file $fullpath
+  fi
 done
 if [ "$withcoverage" == "yes" ]; then
-  $coverage report
+  coverage report
 fi
-
 
