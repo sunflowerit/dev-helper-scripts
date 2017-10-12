@@ -1,11 +1,30 @@
 #!/bin/bash
+execdir=.
 if [ -d "../../parts" ]; then
-  pylint --rcfile=../../.pylint.cfg --init-hook='import sys; sys.path.append("../odoo")' --load-plugins=pylint_odoo *
+  module=*
+  moduledir=.
+  basedir=../..
 elif [ -d "../../../parts" ]; then
-  module=$(basename $(pwd))
-  ( cd .. && pylint --rcfile=../../.pylint.cfg --init-hook='import sys; sys.path.append("../odoo")' --load-plugins=pylint_odoo $module )
+  #execdir=..
+  #basedir=../..
+  #module=$(basename $(pwd))
+  basedir=../../..
+  moduledir=..
+  module=$moduledir/$(basename $(pwd))
+elif [ -d "../../../../parts" ]; then
+  #execdir=../..
+  #basedir=../..
+  #module=$(cd .. && basename $(pwd))
+  basedir=../../../..
+  moduledir=../..
+  module=$moduledir/$(cd .. && basename $(pwd))
 else
   echo "You have to run this from within a parts/xxxxx (repo) folder"
   echo "Or from within a parts/xxxxx/xxxxx (module) folder"
   exit
 fi
+#msgtemplate="$moduledir/{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}"
+msgtemplate="{abspath}:{line}: [{msg_id}({symbol}), {obj}] {msg}"
+set -x
+( cd $execdir && pylint --msg-template="$msgtemplate" --rcfile=$basedir/.pylint.cfg --init-hook="import sys; sys.path.append('$basedir/parts/odoo')" --load-plugins=pylint_odoo $module )
+
