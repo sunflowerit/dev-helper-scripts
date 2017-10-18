@@ -11,14 +11,21 @@ dir=$(mktemp -d)
   --log-level=error \
   --i18n-export=$dir/$module.po \
   -l nl -d $db --modules=$module
+# https://www.gnu.org/software/gettext/manual/html_node/Using-Compendia.html
 if [ ! -f "i18n/nl.po" ]; then
   mkdir -p i18n
-  /bin/cp -f $dir/$module.po i18n/nl.po
+  msgmerge --no-fuzzy-matching --compendium $HOME/odoo_nl.po -o $dir/$module.new.po /dev/null $dir/$module.po
+  /bin/cp -f $dir/$module.new.po i18n/nl.po
+  #/bin/cp -f $dir/$module.po i18n/nl.po
+  #msgcat --use-first -o update.po compendium1.po compendium2.po file.po
+  #msgmerge update.po file.pot | msgattrib --no-obsolete > file.po
 else
   /bin/cp -f i18n/nl.po $dir/$module.old.po
   msgmerge --no-fuzzy-matching --compendium $HOME/odoo_nl.po \
     -U \
     $dir/$module.old.po $dir/$module.po
+  #msgcat --use-first -o $dir/$module.new.po $HOME/odoo_nl.po $dir/$module.old.po
   /bin/cp -f $dir/$module.old.po i18n/nl.po
+  #/bin/cp -f $dir/$module.new.po i18n/nl.po
 fi
 

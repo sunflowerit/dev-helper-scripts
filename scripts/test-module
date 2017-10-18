@@ -8,11 +8,21 @@ if [[ $? -ne 4 ]]; then
 fi
 
 # requirements tests
-if [ ! -d "../../../parts" ]; then
+if [ -d "../../../parts" ]; then
+  basedir=../../..
+  moduledir=.
+  module=${PWD##*/}
+elif [ -d "../../../../parts" ]; then
+  basedir=../../../..
+  moduledir=..
+  pushd ..
+  module=${PWD##*/}
+  popd
+else
   echo "You have to run this from within a parts/xxxxx/yyyyy (module) folder"
   exit
 fi
-files=$(ls tests/test*.py)
+files=$(ls $moduledir/tests/test*.py)
 if [ -z "$files" ]; then
   echo "This module does not have any Python unit tests to call."
   exit
@@ -21,7 +31,7 @@ fi
 # function to get stuff from odoo.cfg
 odoocfgparm=
 get_parm_from_odoocfg() {
-  odoocfgparm=$(cat ../../../etc/odoo.cfg |grep $1 | sed -nr 's/^.*=\s//p' | awk '{$1=$1};1')
+  odoocfgparm=$(cat $basedir/etc/odoo.cfg |grep $1 | sed -nr 's/^.*=\s//p' | awk '{$1=$1};1')
 }
 
 # choose database
@@ -85,9 +95,6 @@ if [ -z "$databaseparm" ]; then
   fi
 fi
 
-# module name to test
-module=${PWD##*/}
-
 # Test whether module is installed
 installed=$(PGPASSWORD="$db_password" psql -t $db_name -h localhost -U "$db_username" -c "select count(id) from ir_module_module where name = '$module' and state = 'installed';")
 if [ $installed -ne 1 ]; then
@@ -96,20 +103,18 @@ if [ $installed -ne 1 ]; then
 fi
 
 # run all tests
-#odoo=$(readlink -f ../../../bin/start_odoo)
-odoo=(../../../bin/start_odoo)
+odoo=$basedir/bin/start_odoo
 if [ ! -x "$odoo" ]; then
   echo Script not found: $odoo. Cannot run tests.
   exit
 fi
-#coverage=$(which coverage)
 odooparms=(--workers=0 --log-level=test --xmlrpc-port=18079 --stop-after-init)
 for file in $files
 do
   fullpath="$(pwd)/$file"
   if [ "$withcoverage" == "yes" ]; then
     set -x
-    coverage run --source . --rcfile=../../../.coveragerc $odoo $databaseparm "${odooparms[@]}" --test-file $fullpath
+    coverage run --source . --rcfile=$basedir/.coveragerc $odoo $databaseparm "${odooparms[@]}" --test-file $fullpath
   else
     set -x
     $odoo $databaseparm "${odooparms[@]}" --test-file $fullpath
