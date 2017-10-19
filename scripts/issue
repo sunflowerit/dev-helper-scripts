@@ -14,16 +14,9 @@ import getopt
 import re
 import argparse
 import requests
+from togglwrapper import Toggl
 
 import json
-
-# TOGGL API
-# pip install togglwrapper
-# iso8601 module
-# pytz module
-# requests
-# python-dateutil
-# add toggl and togglrc files in home
 
 parser = argparse.ArgumentParser()
 parser.add_argument("function", nargs="?",
@@ -41,23 +34,36 @@ parser.add_argument("-test", "--test", action="store_true",
 args = parser.parse_args()
 
 # check if running from a module folder
-if not os.path.exists("../../parts"):
+if os.path.exists("../../../parts"):
+  basepath = '../../..'
+elif os.path.exists("../../parts"):
+  basepath = '../..'
+else:
   print "You have to run this from within a " \
-        "parts/xxxxx/yyyyy (module) folder"
+        "parts/xxxxx (repo) or parts/xxxxx/yyyyy (module) folder"
   sys.exit(1)
 
-info = netrc.netrc()
-auth = info.authenticators('odoosunflower')
-username, host, password = auth
-if not username or not password:
+# get login details from netRC file
+netrc_info = netrc.netrc()
+auth_odoosunflower = netrc_info.authenticators('odoosunflower')
+if not auth_odoosunflower:
   print "In your $HOME/.netrc file place:"
   print "machine odoosunflower login myuser password mypassword"
   sys.exit(0)
+odoo_username, odoo_host, odoo_password = auth_odoosunflower
+
+auth_toggl = netrc_info.authenticators('issuetoggl')
+if not auth_toggl:
+  print "Toggl credentials not found."
+  print "If you want to use Toggl integration, in your $HOME/.netrc file place:"
+  print "machine issuetoggl login myworkspacenumber password mykey"
+else:
+  toggl_workspace, toggl_host, toggl_key = auth_toggl
 
 # translate database name to allowed project names,
 restrict_projects = None
 db = subprocess.check_output(
-  'cat ../../etc/odoo.cfg |grep db_name | sed -nr \'s/^.*=\s//p\' | awk \'{$1=$1};1\'',
+  'cat ' + basepath + '/etc/odoo.cfg |grep db_name | sed -nr \'s/^.*=\s//p\' | awk \'{$1=$1};1\'',
   shell=True).strip()
 print 'Database is...', db
 if 'sunflower' in db:
@@ -79,7 +85,7 @@ opener = urllib2.build_opener(urllib2.HTTPSHandler(context=ctx))
 # connect to server
 odoo = odoorpc.ODOO('sunflower.1systeem.nl',
                     protocol='jsonrpc+ssl', port=443, opener=opener)
-odoo.login('odoo_sunflower', username, password)
+odoo.login('odoo_sunflower', odoo_username, odoo_password)
 
 STAGES = ['Ready for dev', 'Development', 'Code Review']
 
@@ -196,10 +202,10 @@ def has_pylint_errors(issue):
     error_count = 0
     for file in files:
       file_path = '../' + file
-      sys.path.append("../../odoo")
+      sys.path.append("{}/odoo".format(basepath))
       print "\nCHECKING: {}. \n".format(file_path)
-      script = "pylint --rcfile=../../.pylint.cfg --load-plugins=pylint_odoo {}".format(
-        file_path)
+      script = "pylint --rcfile={}/.pylint.cfg --load-plugins=pylint_odoo {}".format(
+        basepath, file_path)
       p = subprocess.Popen(script, shell=True, stdout=subprocess.PIPE,
                            stderr=subprocess.STDOUT)
       for line in p.stdout.readlines():
@@ -215,33 +221,31 @@ def has_pylint_errors(issue):
 
 
 def start_toggl_timer(issue):
-  # pip install togglwrapper
-  from togglwrapper import Toggl
-  toggl = Toggl('9b8fcd5e0f2b37b84ec08878170b3f61')
+  toggl = Toggl(toggl_key)
   description = "#" + str(issue.id) + ' ' + issue.name + ""
   workspace_name = "Sunflower IT"
-  workspace_id = 1437120
+  workspace_id = toggl_workspace
   issue_project = issue.project_id.name
 
   # check workspace exists
   workspace = toggl.Workspaces.get(workspace_id)
-  project_in_toggle = None
+  project_in_toggl = None
   # get all projects in the current workspace clients
   all_projects = toggl.Workspaces.get_projects(workspace_id)
 
   # match issue project name with toggl project name
   for project in all_projects:
     if project['name'] == issue_project:
-      project_in_toggle = project['name']
+      project_in_toggl = project['name']
   # start toggl timer with workspace and project name
   # toggl start 'descrition' :'workspace' @ 'project'
-  if project_in_toggle:
+  if project_in_toggl:
     process = subprocess.Popen([
       "toggl",
       "start",
       "" + description + "",
       ":" + workspace_name + "",
-      "@" + project_in_toggle + ""
+      "@" + project_in_toggl + ""
     ], stdout=subprocess.PIPE)
     output = process.communicate()[0]
     print output
@@ -315,15 +319,17 @@ elif args.function == 'start' and args.issuenumber:
   set_git_for_issue(issue)
   print "Updating Stage for issue {}...".format(args.issuenumber)
   update_issue_stage(issue, 'Development')
-  print "Starting toggl timer for issue #{} ...".format(issue.id)
-  start_toggl_timer(issue)
+  if auth_toggl:
+    print "Starting toggl timer for issue #{} ...".format(issue.id)
+    start_toggl_timer(issue)
   print "Done. Happy Coding!!!"
 
 elif args.function == 'stop' and args.issuenumber:
   print "Checking if issue {} exists...".format(args.issuenumber)
   issue = check_if_issue_exists(args.issuenumber)
-  print "Stopping toggl timer for issue #{} ...".format(issue.id)
-  stop_toggl_timer()
+  if auth_toggl:
+    print "Stopping toggl timer for issue #{} ...".format(issue.id)
+    stop_toggl_timer()
 
 elif args.function == 'continue' and args.issuenumber:
   print "Checking if issue {} exists...".format(args.issuenumber)

@@ -316,8 +316,7 @@ def toggl(url, method, data=None, headers={'content-type' : 'application/json'})
     except Exception as e:
         print('Sent: %s' % data)
         print(e)
-        print(r.text)
-        #sys.exit(1)
+        raise
 
 #############################################################################
 #    _                    _   __  __           _      _     
