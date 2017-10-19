@@ -87,10 +87,9 @@ odoo = odoorpc.ODOO('sunflower.1systeem.nl',
                     protocol='jsonrpc+ssl', port=443, opener=opener)
 odoo.login('odoo_sunflower', odoo_username, odoo_password)
 
-STAGES = ['Ready for dev', 'Development', 'Code Review']
-
+STAGES = ['Ready for dev', 'Development', 'Code Review', 'Architecture']
 ISSUE_STAGE_DOMAIN = [
-  ('stage_id.name', 'in', ['Ready for dev', 'Development', 'Code Review']),
+  ('stage_id.name', 'in', STAGES),
 ]
 
 ISSUE_MIN_PRIORITY_DOMAIN = [('priority', '>=', 2)]
@@ -133,13 +132,13 @@ def issue_list(all_open_issues=False):
 
 def set_git_for_issue(issue):
   required_branch = "8.0-{0}-{1}".format(
-    issue.id,
+    issue.remote_id or issue.id,
     issue.name.replace(" ", "-").lower()
   )
   current_branch = subprocess.check_output('git rev-parse --abbrev-ref HEAD',
                                            shell=True).strip()
   git_branches = subprocess.check_output('git branch -a', shell=True).strip()
-  ready_msg = "Issue Git is ready for developement"
+  ready_msg = "Issue Git is ready for development"
 
   # git pull if current branch = required branch
   if current_branch == required_branch:
@@ -153,7 +152,6 @@ def set_git_for_issue(issue):
       print "Current branch is in local only, 'issue push [num]' or " \
             "'issue finish [num]' will push local branch.\n{}".format(ready_msg)
       # if current branch is in local only
-
 
   # check if required branch is in git_branches and checkout to it
   elif required_branch in git_branches:
@@ -177,7 +175,7 @@ def set_git_for_issue(issue):
   elif required_branch not in git_branches and 'remotes/origin/' + required_branch not in git_branches:
     # required branch is not in git branches, create a new branch
     process = subprocess.Popen(["git", "checkout", "-b", required_branch,
-                                "origin/8.0".format(required_branch)],
+                                "--no-track", "origin/8.0".format(required_branch)],
                                stdout=subprocess.PIPE)
     output = process.communicate()[0]
     print output
