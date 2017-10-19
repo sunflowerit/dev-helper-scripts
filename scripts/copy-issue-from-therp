@@ -1,0 +1,122 @@
+#!/usr/bin/env python
+
+import contextlib
+import odoorpc
+import netrc
+import os
+import requests
+import ssl
+import subprocess
+import sys
+import urllib2
+import warnings
+import getopt
+import re
+import argparse
+import requests
+from togglwrapper import Toggl
+
+import json
+
+parser = argparse.ArgumentParser()
+parser.add_argument("issuenumber", type=int, help="Issue Number")
+args = parser.parse_args()
+
+# get login details from netRC file
+netrc_info = netrc.netrc()
+auth_odoosunflower = netrc_info.authenticators('odoosunflower')
+if not auth_odoosunflower:
+  print "In your $HOME/.netrc file place:"
+  print "machine odoosunflower login myuser password mypassword"
+  sys.exit(0)
+odoo_username, odoo_host, odoo_password = auth_odoosunflower
+auth_odootherp = netrc_info.authenticators('odootherp')
+if not auth_odootherp:
+  print "In your $HOME/.netrc file place:"
+  print "machine odootherp login myuser password mypassword"
+  sys.exit(0)
+therp_username, therp_host, therp_password = auth_odootherp
+
+# create a context to connect without checking for https cert
+ctx = ssl.create_default_context()
+ctx.check_hostname = False
+ctx.verify_mode = ssl.CERT_NONE
+opener = urllib2.build_opener(urllib2.HTTPSHandler(context=ctx))
+
+# connect to Therp Odoo
+therp_odoo = odoorpc.ODOO('helpdesk.therp.nl',
+    protocol='jsonrpc+ssl', port=443, opener=opener)
+therp_odoo.login('odointprd80-helpdesk', therp_username, therp_password)
+
+# connect to our Odoo
+sfit_odoo = odoorpc.ODOO('sunflower.1systeem.nl',
+    protocol='jsonrpc+ssl', port=443, opener=opener)
+sfit_odoo.login('odoo_sunflower', odoo_username, odoo_password)
+
+def check_if_issue_exists_on_therp(issue_id):
+  if 'project.issue' in therp_odoo.env:
+    issue_obj = therp_odoo.env['project.issue']
+    issue_domain = [
+        ('id', '=', issue_id),
+        ('user_id', '=', therp_odoo.env.uid)
+    ]
+    issue_ids = issue_obj.search(issue_domain)
+  if not issue_ids:
+    return False
+  else:
+    return issue_obj.browse(issue_ids)
+
+def check_if_therp_issue_exists_on_sfit(therp_issue_id):
+  if 'project.issue' in sfit_odoo.env:
+    issue_obj = sfit_odoo.env['project.issue']
+    issue_domain = [
+        ('remote_id', '=', therp_issue_id),
+    ]
+    issue_ids = issue_obj.search(issue_domain)
+  if not issue_ids:
+    return False
+  else:
+    return issue_obj.browse(issue_ids)
+
+# find id of Therp project
+therp_project_id = sfit_odoo.env['project.project'].search(
+    [('name', 'ilike', '%Therp%')])
+if not therp_project_id:
+  print "Therp project not found in SFIT Odoo"
+  sys.exit(1)
+therp_project_id = therp_project_id[0]
+print "Therp project found, id = {}".format(therp_project_id)
+  
+issue_id = args.issuenumber
+
+print "Checking if we already copied this issue..."
+issue = check_if_therp_issue_exists_on_sfit(issue_id)
+if issue:
+  print "Therp issue {} already imported as {}".format(issue_id, issue.id)
+  sys.exit(1)
+
+print "Checking if issue {} exists on Therp...".format(issue_id),
+issue = check_if_issue_exists_on_therp(issue_id)
+if not issue:
+  print "Issue of ID {} not found or not assigned to us".format(issue_id)
+  sys.exit(1)
+elif issue.stage_id.name in ['Done', 'Cancelled', 'On Hold']:
+  print "Issue {} is in stage {}".format(issue_id, issue.stage_id.name)
+  sys.exit(1)
+print "exists"
+
+print "Copying Therp issue {} to our issue...".format(issue_id),
+issue_info = issue.read(['name', 'description'])[0]
+issue_obj = sfit_odoo.env['project.issue']
+new_issue = issue_obj.create({
+  'name': issue_info['name'],
+  'description': issue_info['description'],
+  'remote_id': issue_id,
+  'project_id': therp_project_id
+})
+print new_issue
+print "All done! Enjoy your new issue at https://sunflower.1systeem.nl/web#id={}&view_type=form&model=project.issue&action=612".format(new_issue)
+
+
+
+
