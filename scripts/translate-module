@@ -1,18 +1,51 @@
 #!/bin/bash
-if [ ! -d "../../../parts" ]; then
+
+# requirements tests
+if [ -d "../../../parts" ]; then
+  basedir=../../..
+  moduledir=.
+  module=${PWD##*/}
+elif [ -d "../../../../parts" ]; then
+  basedir=../../../..
+  moduledir=..
+  pushd ..
+  module=${PWD##*/}
+  popd
+else
   echo "You have to run this from within a parts/xxxxx/yyyyy (module) folder"
   exit
 fi
-module=${PWD##*/}
-db=$(cat ../../../etc/odoo.cfg |grep db_name | sed -nr 's/^.*=\s//p' | awk '{$1=$1};1')
-echo Database is... $db
+
+# function to get stuff from odoo.cfg
+odoocfgparm=
+get_parm_from_odoocfg() {
+  odoocfgparm=$(cat $basedir/etc/odoo.cfg |grep $1 | sed -nr 's/^.*=\s//p' | awk '{$1=$1};1')
+}
+
+# choose database
+get_parm_from_odoocfg db_name && db_name="$odoocfgparm"
+get_parm_from_odoocfg db_password && db_password="$odoocfgparm"
+get_parm_from_odoocfg db_user && db_username="$odoocfgparm"
+get_parm_from_odoocfg dbfilter && dbfilter="$odoocfgparm"
+echo Database is... $db_name
+
+# Test whether module is installed
+installed=$(PGPASSWORD="$db_password" psql -t $db_name -h localhost -U "$db_username" -c "select count(id) from ir_module_module where name = '$module' and state = 'installed';")
+if [ $installed -ne 1 ]; then
+  echo Module $module not installed in database $db_name!
+  echo Try: install-module -d $db_name
+  exit
+fi
+
+# make export in temporary folder
 dir=$(mktemp -d)
 ../../../bin/start_odoo \
   --log-level=error \
   --i18n-export=$dir/$module.po \
-  -l nl -d $db --modules=$module
+  -l nl -d $db_name --modules=$module
 # https://www.gnu.org/software/gettext/manual/html_node/Using-Compendia.html
 if [ ! -f "i18n/nl.po" ]; then
+  echo Creating new translations...
   mkdir -p i18n
   msgmerge --no-fuzzy-matching --compendium $HOME/odoo_nl.po -o $dir/$module.new.po /dev/null $dir/$module.po
   /bin/cp -f $dir/$module.new.po i18n/nl.po
@@ -20,6 +53,7 @@ if [ ! -f "i18n/nl.po" ]; then
   #msgcat --use-first -o update.po compendium1.po compendium2.po file.po
   #msgmerge update.po file.pot | msgattrib --no-obsolete > file.po
 else
+  echo Updating existing translations...
   /bin/cp -f i18n/nl.po $dir/$module.old.po
   msgmerge --no-fuzzy-matching --compendium $HOME/odoo_nl.po \
     -U \
