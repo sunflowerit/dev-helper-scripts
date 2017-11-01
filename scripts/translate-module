@@ -27,6 +27,30 @@ get_parm_from_odoocfg db_name && db_name="$odoocfgparm"
 get_parm_from_odoocfg db_password && db_password="$odoocfgparm"
 get_parm_from_odoocfg db_user && db_username="$odoocfgparm"
 get_parm_from_odoocfg dbfilter && dbfilter="$odoocfgparm"
+
+# command line parameters
+OPTIONS=d:
+PARSED=$(getopt --options=$OPTIONS --name "$0" -- "$@")
+if [[ $? -ne 0 ]]; then
+    exit 2
+fi
+eval set -- "$PARSED"
+while true; do
+    case "$1" in
+        -d)
+            db_name="$2"
+            shift 2
+            ;;
+        --)
+            shift
+            break
+            ;;
+        *)
+            echo "Invalid parameter: $1."
+            exit 3
+    esac
+done
+
 echo Database is... $db_name
 
 # Test whether module is installed

@@ -15,6 +15,11 @@ scriptname="$(basename $0)"
 if [ -d "../../../parts" ]; then
   module=${PWD##*/}
   odoo=../../../bin/start_odoo
+elif [ -d "../../../../parts" ]; then
+  pushd ..
+  module=${PWD##*/}
+  popd
+  odoo=../../../../bin/start_odoo
 elif [ $# -eq 0 ]; then
   echo "Usage: $0 -m [module] [-i] [-u] [-d db]"
   exit
