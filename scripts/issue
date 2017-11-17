@@ -133,7 +133,7 @@ def issue_list(all_open_issues=False):
 def set_git_for_issue(issue):
   required_branch = "8.0-{0}-{1}".format(
     issue.remote_id or issue.id,
-    issue.name.replace(" ", "-").lower()
+    re.sub(r'([^-\s\w]|_)+', '', issue.name.replace(" ", "-")).lower()
   )
   current_branch = subprocess.check_output('git rev-parse --abbrev-ref HEAD',
                                            shell=True).strip()
