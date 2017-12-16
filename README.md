@@ -39,3 +39,9 @@ To update the Therp scripts:
     git clone git@gitlab.therp.nl:therp/deployment-scripts.git therp-scripts
     ln -sf $(pwd)/therp-scripts/bin/oe-get-buildout-versions.sh $HOME/bin
 
+Odoo New Instance Script is a fab script, you need to run it in the folder that contains the script file.
+To Run Odoo Installation Script:
+    
+    cd PATH_TO_FAB_SCRIPT
+    fab install_odoo:instance=ODOO_INSTANCE_NAME, url=URL_TO_ACCESS_NEW_ODOO, email=EMAIL_TO_RECEIVE_CONFIG_DETAILS
+
