@@ -3,6 +3,10 @@
 
 import os
 import time
+import json
+import io
+
+from os.path import expanduser
 
 from fabric.context_managers import *
 from fabric.contrib.files import exists
@@ -86,7 +90,6 @@ def postgres_user_exists(INSTANCE):
         return check_user
            
 def add_host_to_ssh_config(USERNAME):
-    from os.path import expanduser
     home = expanduser("~")
     config_file = "{}/.ssh/config".format(home)
 
@@ -108,7 +111,7 @@ def add_host_to_ssh_config(USERNAME):
                 'USERNAME': USERNAME,
             }),)
 
-def ssh_git_clone(USERNAME):
+def ssh_git_clone(USERNAME, BRANCH):
     known_hosts= sudo("find /home/{}/.ssh -name known_hosts".format(USERNAME), user='root')
     buildout = sudo("find /home/{} -type d -name buildout".format(USERNAME), user='root')
     if not known_hosts:
@@ -121,8 +124,10 @@ def ssh_git_clone(USERNAME):
         }))
     if not buildout:
         print "Buildout does not exist, cloning into home dir..."
-        os.system("ssh {} 'git clone git@github.com:sunflowerit/custom-installations.git --branch 10.0-custom-standard --single-branch buildout'".format(USERNAME))
-
+        os.system("ssh {USERNAME} 'git clone git@github.com:sunflowerit/custom-installations.git --branch {BRANCH} --single-branch buildout'".format(**{
+            'USERNAME': USERNAME,
+            'BRANCH': BRANCH,
+        }))
 def run_buildout(USERNAME, PORT):
     os.system("ssh {} 'python buildout/bootstrap.py -c buildout/local.cfg'".format(USERNAME))
     os.system("ssh {} 'python buildout/bin/buildout -c buildout/local.cfg'".format(USERNAME))
@@ -166,14 +171,14 @@ def encrypt_https_certificate(URL):
       
 
 
-def create_local_cfg(INSTANCE, PORT, DBUSER, USERNAME, PASSWORD):
+def create_local_cfg(INSTANCE, PORT, DBUSER, USERNAME, PASSWORD, CFG):
     file = sudo("find /home/{}/buildout -name local.cfg".format(USERNAME), user='root')
     if not file:
         print "Local.cfg does not exists, creating file local.cfg ..."
         sudo(
             "echo '\
 [buildout]\n\
-extends = odoo10-standard.cfg \n\n\
+extends = {CFG} \n\n\
 [odoo]\n\
 options.admin_passwd = {PASSWORD}\n\
 options.db_host = localhost\n\
@@ -185,6 +190,7 @@ options.xmlrpc_port =   {PORT}\n\
 options.longpolling_port = {LONG_PORT}\n\
 options.dbfilter = ^{INSTANCE}.*$\n\
 options.logfile = /home/{USERNAME}/{USERNAME}.log' >/home/{USERNAME}/buildout/local.cfg".format(**{
+                'CFG': CFG,
                 'USERNAME': USERNAME,
                 'DBUSER': DBUSER,
                 'INSTANCE': INSTANCE,
@@ -282,6 +288,26 @@ server {left_par}\n\
         })
     )
 
+def create_config_file(USERNAME, DBUSER, PASSWORD):
+    right_par = '}'
+    left_par = '{'
+
+    sudo(
+        "echo '\
+{left_par}\n\
+    \"unix_user\": \"{USERNAME}\",\n\
+    \"unix_password\": \"{PASSWORD}\",\n\
+    \"postgres_user\": \"{DBUSER}\",\n\
+    \"postgres_passord\": \"{PASSWORD}\"\n\
+{right_par}' >/home/{USERNAME}/odooconfig.json".format(**{
+                'USERNAME': USERNAME,
+                'DBUSER': DBUSER,
+                'PASSWORD': PASSWORD,
+                'right_par': right_par,
+                'left_par': left_par,
+            }),
+        user=USERNAME)
+
 def after_installation(INSTANCE, DBUSER, USERNAME, PASSWORD):
     #ALTER USER $USERNAME NOCREATEDB;
     sudo(
@@ -315,17 +341,35 @@ def send_config_to_mail():
     pass
     #TODO
 
-def install_odoo(instance=False, url=False):
+def install_odoo(instance=False, url=False, version=False, type='full', email=False):
     #fab install_odoo:instance=testv2,url=testurl
-    if not instance:
-        print "You need to add instance name: run 'fab install_odoo:instance=NAME_OF_YOUR_INSTANCE'"
+    if not instance or not version or not email:
+        print "\n\
+        Run fab with arguments eg:\n\n\
+        fab install_odoo:instance=testv2,url=testurl \n\n\
+        Some arguments are missing: \n\n\
+        1. Required Arguments are:\n\n\
+            instance=INSTANCE_NAME\n\
+            version=INSTANCE_VERSION eg. 8, 9, 10 \n\
+            email=INSTANCE_SETTINGS_EMAIL\n\n\
+        2. Optional Arguments are:\n\n\
+            url=INSTANCE_URL eg. test.1systeem.nl\n\
+            type=full || light\n\
+        "
+    elif type == 'light':
+        pass
+        #TODO
+
     else:
+        BRANCH = '{0}.0-custom-standard'.format(version)
+        CFG = 'odoo{0}-standard.cfg'.format(version)
         URL = url or instance+'.1systeem.nl'
-        PASSWORD = get_password()
-        PORT = get_port()
+        # PASSWORD = get_password()
+        # PORT = get_port()
         INSTANCE = instance
         USERNAME = "odoo-"+INSTANCE
         DBUSER = "odoo"+INSTANCE
+        print BRANCH, CFG
         if not unix_user_exists(INSTANCE):
             print "Setting up Unix User..."
             setup_unix_user(INSTANCE, PASSWORD)
@@ -335,13 +379,15 @@ def install_odoo(instance=False, url=False):
             setup_postgres_user(INSTANCE, PASSWORD)
 
         add_host_to_ssh_config(USERNAME)
-        ssh_git_clone(USERNAME)
-        create_local_cfg(INSTANCE, PORT, DBUSER, USERNAME, PASSWORD)
+        ssh_git_clone(USERNAME, BRANCH)
+        create_local_cfg(INSTANCE, PORT, DBUSER, USERNAME, PASSWORD, CFG)
         run_buildout(USERNAME, PORT)
         add_and_start_odoo_service(INSTANCE, USERNAME, PORT)
         encrypt_https_certificate(URL)
         configure_nginx(INSTANCE, USERNAME, PORT, URL)
+        create_config_file(USERNAME, DBUSER, PASSWORD)
         after_installation(INSTANCE, DBUSER, USERNAME, PASSWORD)
+
         # send_config_to_mail(email)
 
         print('Yay, we are done, visit your odoo instance at: \n https://{}'.format(URL))
