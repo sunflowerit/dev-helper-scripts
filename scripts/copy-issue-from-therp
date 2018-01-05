@@ -58,7 +58,7 @@ def check_if_issue_exists_on_therp(issue_id):
     issue_obj = therp_odoo.env['project.issue']
     issue_domain = [
         ('id', '=', issue_id),
-        ('user_id', '=', therp_odoo.env.uid)
+        #('user_id', '=', therp_odoo.env.uid)
     ]
     issue_ids = issue_obj.search(issue_domain)
   if not issue_ids:

@@ -6,6 +6,7 @@ from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
 import getopt
 import json
+import math
 import netrc
 import odoorpc
 import os
@@ -15,6 +16,7 @@ import requests
 import ssl
 import subprocess
 import sys
+import time
 from togglwrapper import Toggl
 import urllib2
 import warnings
@@ -23,15 +25,15 @@ import warnings
 netrc_info = netrc.netrc()
 auth_odoosunflower = netrc_info.authenticators('odoosunflower')
 if not auth_odoosunflower:
-  print "In your $HOME/.netrc file place:"
-  print "machine odoosunflower login myuser password mypassword"
-  sys.exit(0)
+    print "In your $HOME/.netrc file place:"
+    print "machine odoosunflower login myuser password mypassword"
+    sys.exit(0)
 odoo_username, odoo_host, odoo_password = auth_odoosunflower
 auth_odootherp = netrc_info.authenticators('odootherp')
 if not auth_odootherp:
-  print "In your $HOME/.netrc file place:"
-  print "machine odootherp login myuser password mypassword"
-  sys.exit(0)
+    print "In your $HOME/.netrc file place:"
+    print "machine odootherp login myuser password mypassword"
+    sys.exit(0)
 therp_username, therp_host, therp_password = auth_odootherp
 
 # create a context to connect without checking for https cert
@@ -40,11 +42,6 @@ ctx.check_hostname = False
 ctx.verify_mode = ssl.CERT_NONE
 opener = urllib2.build_opener(urllib2.HTTPSHandler(context=ctx))
 
-# connect to Therp Odoo
-therp_odoo = odoorpc.ODOO('helpdesk.therp.nl',
-    protocol='jsonrpc+ssl', port=443, opener=opener)
-therp_odoo.login('odointprd80-helpdesk', therp_username, therp_password)
-
 # connect to our Odoo
 sfit_odoo = odoorpc.ODOO('sunflower.1systeem.nl',
     protocol='jsonrpc+ssl', port=443, opener=opener)
@@ -52,50 +49,61 @@ sfit_odoo.login('odoo_sunflower', odoo_username, odoo_password)
 
 # find id of Therp project
 project_obj = sfit_odoo.env['project.project']
-therp_project_id = project_obj.search(
+therp_project_ids = project_obj.search(
     [('name', 'ilike', '%Therp%')])
-if not therp_project_id:
-  print "Therp project not found in SFIT Odoo"
-  sys.exit(1)
-therp_project_id = therp_project_id[0]
-therp_project = project_obj.browse(therp_project_id)
-therp_account_id = therp_project.analytic_account_id.id
+if not therp_project_ids:
+    print "Therp project not found in SFIT Odoo"
+    sys.exit(1)
+therp_project_id = therp_project_ids[0]
+therp_project_read = project_obj.browse(therp_project_id).read(
+    ['analytic_account_id'])[0]
+therp_account_id = therp_project_read['analytic_account_id'][0]
 print "Therp project found, id = {}".format(therp_project_id)
 print "Analytic account id = {}".format(therp_account_id)
 
 # get hours on Therp project
-first_day_of_current_month = date.today().replace(day=1)
+first_day_of_current_month = (date.today() + relativedelta(days=7)).replace(day=1)
 date_start = first_day_of_current_month - relativedelta(months=1)
 date_end = first_day_of_current_month - timedelta(days=1)
 date_start_str = date_start.strftime('%Y-%m-%d')
 date_end_str = date_end.strftime('%Y-%m-%d')
 print "Therp hours between {:%d %b %Y} - {:%d %b %Y}".format(
-	date_start, date_end)
-if 'hr.analytic.timesheet' in sfit_odoo.env:
-	hours_obj = sfit_odoo.env['hr.analytic.timesheet']
-	hours_domain = [
-	    ('account_id', '=', therp_account_id),
-	    ('date', '>=', date_start_str),
-	    ('date', '<=', date_end_str)
-	]
-	hours_ids = hours_obj.search(hours_domain, order='date asc')
-issue_obj = sfit_odoo.env['project.issue']
-if hours_ids:
-	hours = hours_obj.browse(hours_ids).read(['date', 'issue_id', 'name', 'user_id', 'unit_amount'])
-	for hour in hours:
-		hour['remote_issue_id'] = None
-		issue_id = hour['issue_id']
-		if issue_id:
-			issue_info = issue_obj.browse(issue_id[0]).read(['remote_id'])
-			remote_id = issue_info[0]['remote_id']
-			if remote_id:
-				hour['remote_issue_id'] = remote_id
-	hours_readable = ['{}-{}-{}-{}'.format(
-		a['date'], a['unit_amount'], a['name'], a['user_id'][1])
-		for a in hours]	
-	print("\n".join(hours_readable))
-	hours_total = sum([a['unit_amount'] for a in hours])
-	print "TOTAL: {}".format(hours_total)
+    date_start, date_end)
+try:
+    hours_obj = sfit_odoo.env['hr.analytic.timesheet']
+    issue_obj = sfit_odoo.env['project.issue']
+except KeyError:
+    print "Required objects not found on SFIT instance."
+    sys.exit(1)
+hours_domain = [
+    ('account_id', '=', therp_account_id),
+    ('date', '>=', date_start_str),
+    ('date', '<=', date_end_str)
+]
+print "Getting hours from SFIT..."
+hours_ids = hours_obj.search(hours_domain, order='date asc')
+if not hours_ids:
+    print "No hours found for this month."
+    sys.exit(0)
+hours = hours_obj.browse(hours_ids)
+hours_read = hours.read(['date', 'issue_id', 'name', 'user_id', 'unit_amount'])
+hours_readable = ['{}-{}-{}-{}'.format(
+    a['date'], a['unit_amount'], a['name'], a['user_id'][1])
+    for a in hours_read]	
+print("\n".join(hours_readable))
+hours_total = sum([a.unit_amount for a in hours])
+print "TOTAL: {}".format(hours_total)
+
+# Getting issue information
+print 'Getting issue information'
+issue_ids = [hour.get('issue_id', [None])[0] for hour in hours_read if hour]
+remote_ids = issue_obj.browse(issue_ids).read(['remote_id'])
+issue_trans = dict((r['id'], r['remote_id'] or r['id']) for r in remote_ids)
+
+# connect to Therp Odoo
+therp_odoo = odoorpc.ODOO('helpdesk.therp.nl',
+    protocol='jsonrpc+ssl', port=443, opener=opener)
+therp_odoo.login('odointprd80-helpdesk', therp_username, therp_password)
 
 # find id of VWN project
 account_obj = therp_odoo.env['account.account']
@@ -109,24 +117,41 @@ therp_hours_domain = [
     ('date', '>=', date_start_str),
     ('date', '<=', date_end_str)
 ]
+sys.stdout.write("Finding Therp hours...")
+sys.stdout.flush()
 therp_hours_ids = therp_hours_obj.search(therp_hours_domain)
 if therp_hours_ids:
-	print "Already have {} hour lines for this month".format(len(therp_hours_ids))
-	sys.exit(1)
+    sys.stdout.write("Found. Deleting...")
+    sys.stdout.flush()
+    therp_hours_obj.unlink(therp_hours_ids)
+    print 'Done'
 
 # Store 
-for hour in hours:
-	hour_data = {
-		'date': hour['date'],
-		'unit_amount': hour['unit_amount'],
-		'issue_id': hour['remote_issue_id'],
-		'user_id': therp_odoo.env.uid,
-		'account_id': vwn_account_id,
-		'journal_id': 6,
-		'to_invoice': 1,
-		'name': '{} ({})'.format(hour['name'], hour['user_id'][1])
-	}
-	therp_hours_obj.create(hour_data)
+hour_data = []
+print 'Collecting information on hours to copy...'
+therp_user_id = therp_odoo.env.uid
+for hour in hours_read:
+    user_name = hour['user_id'][1]
+    amount = hour['unit_amount']
+    issue_id = hour['issue_id'][0]
+    remote_id = issue_trans.get(issue_id, issue_id)
+    if "Dan" in user_name or "Terrence" in user_name:
+        amount = math.ceil(amount * 0.5 * 4.0) * 0.25
+    hour_data.append({
+        'date': hour['date'],
+        'unit_amount': amount,
+        'issue_id': remote_id,
+        'user_id': therp_user_id,
+        'account_id': vwn_account_id,
+        'journal_id': 6,
+        'to_invoice': 1,
+        'name': '{} ({})'.format(hour['name'], user_name)
+    })
+print 'Creating hour records at Therp...'
+for record in hour_data:
+    sys.stdout.write('.')
+    sys.stdout.flush()
+    therp_hours_obj.create(record)
 
 print "Hours copied! Check your work at https://helpdesk.therp.nl/web#page=0&limit=80&view_type=list&model=hr.analytic.timesheet&action=479"
 
