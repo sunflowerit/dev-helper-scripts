@@ -108,7 +108,7 @@ if [ ! -x "$odoo" ]; then
   echo Script not found: $odoo. Cannot run tests.
   exit
 fi
-odooparms=(--workers=0 --log-level=test --xmlrpc-port=18079 --stop-after-init)
+odooparms=(--workers=0 --test-report-directory=/tmp --log-level=test --xmlrpc-port=18079 --stop-after-init)
 for file in $files
 do
   fullpath="$(pwd)/$file"
