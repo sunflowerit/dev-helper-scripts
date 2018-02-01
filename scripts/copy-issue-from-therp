@@ -12,15 +12,12 @@ import urllib2
 import warnings
 import getopt
 import re
-import argparse
 import requests
 from togglwrapper import Toggl
-
+import pprint
 import json
 
-parser = argparse.ArgumentParser()
-parser.add_argument("issuenumber", type=int, help="Issue Number")
-args = parser.parse_args()
+
 
 # get login details from netRC file
 netrc_info = netrc.netrc()
@@ -53,70 +50,37 @@ sfit_odoo = odoorpc.ODOO('sunflower.1systeem.nl',
     protocol='jsonrpc+ssl', port=443, opener=opener)
 sfit_odoo.login('odoo_sunflower', odoo_username, odoo_password)
 
-def check_if_issue_exists_on_therp(issue_id):
-  if 'project.issue' in therp_odoo.env:
-    issue_obj = therp_odoo.env['project.issue']
-    issue_domain = [
-        ('id', '=', issue_id),
-        #('user_id', '=', therp_odoo.env.uid)
-    ]
-    issue_ids = issue_obj.search(issue_domain)
-  if not issue_ids:
-    return False
-  else:
-    return issue_obj.browse(issue_ids)
+therp_project_obj = therp_odoo.env['project.project']
+therp_issue_obj = therp_odoo.env['project.issue']
 
-def check_if_therp_issue_exists_on_sfit(therp_issue_id):
-  if 'project.issue' in sfit_odoo.env:
-    issue_obj = sfit_odoo.env['project.issue']
-    issue_domain = [
-        ('remote_id', '=', therp_issue_id),
-    ]
-    issue_ids = issue_obj.search(issue_domain)
-  if not issue_ids:
-    return False
-  else:
-    return issue_obj.browse(issue_ids)
+sfit_issue_obj = sfit_odoo.env['project.issue']
+
+therp_project_ids = therp_project_obj.search([('state', '=', 'open')])
+therp_issue_ids = therp_issue_obj.search([('project_id','in',therp_project_ids),('stage_id.name', 'ilike', 'Nieuw')])
+
+sfit_issue_ids = sfit_issue_obj.search([('remote_id', 'in', therp_issue_ids)])
+sfit_remote_ids = sfit_issue_obj.browse(sfit_issue_ids).read(['remote_id'])
+
+sfit_remote_ids = [remote.get('remote_id') for remote in sfit_remote_ids ]
+issues_to_sfit = set(therp_issue_ids) - set(sfit_remote_ids)
 
 # find id of Therp project
 therp_project_id = sfit_odoo.env['project.project'].search(
-    [('name', 'ilike', '%Therp%')])
+    [('id', 'in', '%Therp%')])
 if not therp_project_id:
   print "Therp project not found in SFIT Odoo"
   sys.exit(1)
 therp_project_id = therp_project_id[0]
 print "Therp project found, id = {}".format(therp_project_id)
   
-issue_id = args.issuenumber
+issue_info = therp_issue_obj.browse(issues_to_sfit).read(['name', 'description', 'project_id'])
+print 'issues to be copied from Therp ', list(issues_to_sfit)
 
-print "Checking if we already copied this issue..."
-issue = check_if_therp_issue_exists_on_sfit(issue_id)
-if issue:
-  print "Therp issue {} already imported as {}".format(issue_id, issue.id)
-  sys.exit(1)
-
-print "Checking if issue {} exists on Therp...".format(issue_id),
-issue = check_if_issue_exists_on_therp(issue_id)
-if not issue:
-  print "Issue of ID {} not found or not assigned to us".format(issue_id)
-  sys.exit(1)
-elif issue.stage_id.name in ['Done', 'Cancelled', 'On Hold']:
-  print "Issue {} is in stage {}".format(issue_id, issue.stage_id.name)
-  sys.exit(1)
-print "exists"
-
-print "Copying Therp issue {} to our issue...".format(issue_id),
-issue_info = issue.read(['name', 'description'])[0]
-issue_obj = sfit_odoo.env['project.issue']
-new_issue = issue_obj.create({
-  'name': issue_info['name'],
-  'description': issue_info['description'],
-  'remote_id': issue_id,
-  'project_id': therp_project_id
-})
-print new_issue
-print "All done! Enjoy your new issue at https://sunflower.1systeem.nl/web#id={}&view_type=form&model=project.issue&action=612".format(new_issue)
-
-
-
-
+for remote in issue_info:
+    new_issue = sfit_issue_obj.create({
+      'name': remote['name'],
+      'description': remote['description'],
+      'remote_id': remote['id'],
+      'project_id': therp_project_id,
+      'remote_project_id': remote['project_id']
+    })
