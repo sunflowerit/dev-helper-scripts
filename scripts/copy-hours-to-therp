@@ -133,7 +133,7 @@ for hour in hours_read:
     issue_id = hour['issue_id'][0]
     remote_id = issue_trans.get(issue_id, False)
     project_id = project_issue_trans.get(remote_id,False)
-    project_analytic_account_id = project_analytic_trans.get(project_id,False)
+    project_analytic_account_id = project_analytic_trans.get(project_id, 80)
     therp_hours_domain = [
     ('account_id', '=', project_analytic_account_id),
     ('date', '>=', date_start_str),
@@ -158,7 +158,8 @@ for hour in hours_read:
         'name': '{} ({})'.format(hour['name'], user_name)
     })
 
-# print 'Creating hour records at Therp...'
+print 'Creating hour records at Therp...'
+pprint(hour_data)
 for record in hour_data:
     sys.stdout.write('.')
     sys.stdout.flush()

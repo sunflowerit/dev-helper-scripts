@@ -55,7 +55,7 @@ therp_issue_obj = therp_odoo.env['project.issue']
 
 sfit_issue_obj = sfit_odoo.env['project.issue']
 
-therp_project_ids = therp_project_obj.search([('state', '=', 'open')])
+therp_project_ids = therp_project_obj.search([('state', '=', 'open'),('name', 'ilike', 'SV%')])
 therp_issue_ids = therp_issue_obj.search([('project_id','in',therp_project_ids),('stage_id.name', 'ilike', 'Nieuw')])
 
 sfit_issue_ids = sfit_issue_obj.search([('remote_id', 'in', therp_issue_ids)])
@@ -66,7 +66,7 @@ issues_to_sfit = set(therp_issue_ids) - set(sfit_remote_ids)
 
 # find id of Therp project
 therp_project_id = sfit_odoo.env['project.project'].search(
-    [('id', 'in', '%Therp%')])
+    [('name', 'ilike', '%Therp%')])
 if not therp_project_id:
   print "Therp project not found in SFIT Odoo"
   sys.exit(1)
