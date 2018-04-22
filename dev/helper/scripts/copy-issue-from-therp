@@ -13,7 +13,6 @@ import warnings
 import getopt
 import re
 import requests
-from togglwrapper import Toggl
 import pprint
 import json
 

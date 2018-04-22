@@ -1,3 +1,8 @@
 therp-scripts
 .idea
+dist
 *.pyc
+*.pyo
+.eggs/*
+*.egg-info/
+build/*
