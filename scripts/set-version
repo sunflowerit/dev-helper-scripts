@@ -1,0 +1,79 @@
+#!/bin/bash
+
+INCLUDEDIR="$(dirname "$0")"
+source "$INCLUDEDIR/common-funcs.sh"
+
+# getopt test
+getopt --test > /dev/null
+if [[ $? -ne 4 ]]; then
+    echo "I’m sorry, `getopt --test` failed in this environment."
+    exit 1
+fi
+
+get_parm_from_odoocfg db_name && database="$odoocfgparm"
+get_parm_from_odoocfg db_password && db_password="$odoocfgparm"
+get_parm_from_odoocfg db_user && db_username="$odoocfgparm"
+
+# prefill default vars based on current folder
+scriptname="$(basename $0)"
+if [ -d "../../../parts" ]; then
+  module=${PWD##*/}
+elif [ -d "../../../../parts" ]; then
+  pushd ..
+  module=${PWD##*/}
+  popd
+elif [ $# -eq 0 ]; then
+  echo "Usage: $0 -v [version] -m [module] [-d db]"
+  exit
+fi
+
+# parse command line options
+OPTIONS=d:m:v:
+version=""
+PARSED=$(getopt --options=$OPTIONS --name "$0" -- "$@")
+if [[ $? -ne 0 ]]; then
+    exit 2
+fi
+eval set -- "$PARSED"
+while true; do
+    case "$1" in
+        -v)
+            version="$2"
+            shift 2
+            ;;
+        -m)
+            module="$2"
+            shift 2
+            ;;
+        -d)
+            database="$2"
+            shift 2
+            ;;
+        -i)
+            moduleparm="-i"
+            shift
+            ;;
+        --)
+            shift
+            break
+            ;;
+        *)
+            echo "Invalid parameter: $1."
+            exit 3
+    esac
+done
+
+# read or write current version of module
+if [ "$version" == "" ]; then
+  echo Version of module $module in $database currently is....
+  PGPASSWORD="$db_password" psql -t $database -h localhost -U "$db_username" <<EOF
+    select latest_version, name from ir_module_module where name = '$module';
+EOF
+else
+  echo Setting version of $module in $database to.... $version
+  PGPASSWORD="$db_password" psql -t $database -h localhost -U "$db_username" <<EOF
+    update ir_module_module set latest_version = '$version' where name = '$module';
+EOF
+fi
+
+

@@ -80,7 +80,6 @@ hours_domain = [
     ('date', '>=', date_start_str),
     ('date', '<=', date_end_str)
 ]
-print "Getting hours from SFIT..."
 hours_ids = hours_obj.search(hours_domain, order='date asc')
 if not hours_ids:
     print "No hours found for this month."
@@ -89,44 +88,42 @@ hours = hours_obj.browse(hours_ids)
 hours_read = hours.read(['date', 'issue_id', 'name', 'user_id', 'unit_amount'])
 hours_readable = ['{}-{}-{}-{}'.format(
     a['date'], a['unit_amount'], a['name'], a['user_id'][1])
-    for a in hours_read]	
+    for a in hours_read]
 print("\n".join(hours_readable))
 hours_total = sum([a.unit_amount for a in hours])
 print "TOTAL: {}".format(hours_total)
 
 # Getting issue information
-print 'Getting issue information'
 issue_ids = [hour.get('issue_id', [None])[0] for hour in hours_read if hour]
 remote_ids = issue_obj.browse(issue_ids).read(['remote_id'])
-issue_trans = dict((r['id'], r['remote_id'] or r['id']) for r in remote_ids)
+issue_trans = dict((r['id'], r['remote_id'] or r['remote_id']) for r in remote_ids)
 
+print "issue_ids", issue_ids
+print "remote_ids",remote_ids
 # connect to Therp Odoo
 therp_odoo = odoorpc.ODOO('helpdesk.therp.nl',
     protocol='jsonrpc+ssl', port=443, opener=opener)
 therp_odoo.login('odointprd80-helpdesk', therp_username, therp_password)
 
-# find id of VWN project
-account_obj = therp_odoo.env['account.account']
-vwn_account_id = 80  # Revenue SV Oost
-print "VWN analytic account found, id = {}".format(vwn_account_id)
-
-# find if we already put hours there
+therp_issue_obj = therp_odoo.env['project.issue']
+therp_project_obj = therp_odoo.env['project.project']
 therp_hours_obj = therp_odoo.env['hr.analytic.timesheet']
-therp_hours_domain = [
-    ('account_id', '=', vwn_account_id),
-    ('date', '>=', date_start_str),
-    ('date', '<=', date_end_str)
-]
-sys.stdout.write("Finding Therp hours...")
-sys.stdout.flush()
-therp_hours_ids = therp_hours_obj.search(therp_hours_domain)
-if therp_hours_ids:
-    sys.stdout.write("Found. Deleting...")
-    sys.stdout.flush()
-    therp_hours_obj.unlink(therp_hours_ids)
-    print 'Done'
 
-# Store 
+# get our projects id on the Therp ,'state' = 'open'
+project_ids = therp_project_obj.search([('state', '=', 'open')])
+# get the 'remote_ids'
+remote_issue_ids = [issue_trans.get(issue_id) for issue_id in issue_ids]
+# get Therp issue_id belong to sunfloweit and thier project_id
+therp_remote_ids = therp_issue_obj.search([('id','in',remote_issue_ids),('project_id','in',project_ids)])
+issue_project_id = therp_issue_obj.browse(therp_remote_ids).read(['project_id'])
+# get the account_analytic_id for each project_id
+account_id = therp_project_obj.read(project_ids, ['analytic_account_id'])
+
+# [dict] return the project_id for 'issue_id'
+project_issue_trans = dict((r['id'], r['project_id'][0] or r['id']) for r in issue_project_id)
+# [dict ] retuen the analytic_account_id for project_id
+project_analytic_trans = dict((r['id'], r['analytic_account_id'][0] or r['id']) for r in account_id)
+
 hour_data = []
 print 'Collecting information on hours to copy...'
 therp_user_id = therp_odoo.env.uid
@@ -134,7 +131,20 @@ for hour in hours_read:
     user_name = hour['user_id'][1]
     amount = hour['unit_amount']
     issue_id = hour['issue_id'][0]
-    remote_id = issue_trans.get(issue_id, issue_id)
+    remote_id = issue_trans.get(issue_id, False)
+    project_id = project_issue_trans.get(remote_id,False)
+    project_analytic_account_id = project_analytic_trans.get(project_id, 80)
+    therp_hours_domain = [
+    ('account_id', '=', project_analytic_account_id),
+    ('date', '>=', date_start_str),
+    ('date', '<=', date_end_str)
+    ] 
+    therp_hours_ids = therp_hours_obj.search(therp_hours_domain)
+    if therp_hours_ids:
+        sys.stdout.write("Found. Deleting...")
+        sys.stdout.flush()
+        therp_hours_obj.unlink(therp_hours_ids)
+        print 'Done'
     if "Dan" in user_name or "Terrence" in user_name:
         amount = math.ceil(amount * 0.5 * 4.0) * 0.25
     hour_data.append({
@@ -142,19 +152,17 @@ for hour in hours_read:
         'unit_amount': amount,
         'issue_id': remote_id,
         'user_id': therp_user_id,
-        'account_id': vwn_account_id,
+        'account_id': project_analytic_account_id,
         'journal_id': 6,
         'to_invoice': 1,
         'name': '{} ({})'.format(hour['name'], user_name)
     })
+
 print 'Creating hour records at Therp...'
+pprint(hour_data)
 for record in hour_data:
     sys.stdout.write('.')
     sys.stdout.flush()
     therp_hours_obj.create(record)
 
 print "Hours copied! Check your work at https://helpdesk.therp.nl/web#page=0&limit=80&view_type=list&model=hr.analytic.timesheet&action=479"
-
-
-
-
