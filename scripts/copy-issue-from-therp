@@ -56,7 +56,11 @@ therp_issue_obj = therp_odoo.env['project.issue']
 sfit_issue_obj = sfit_odoo.env['project.issue']
 
 therp_project_ids = therp_project_obj.search([('state', '=', 'open'),('name', 'ilike', 'SV%')])
-therp_issue_ids = therp_issue_obj.search([('project_id','in',therp_project_ids),('stage_id.name', 'ilike', 'Nieuw')])
+therp_issue_ids = therp_issue_obj.search([
+    ('project_id','in',therp_project_ids),
+    ('stage_id.state', 'not in', ['done', 'cancelled']),
+    ('user_id', '=', therp_odoo.env.uid)
+])
 
 sfit_issue_ids = sfit_issue_obj.search([('remote_id', 'in', therp_issue_ids)])
 sfit_remote_ids = sfit_issue_obj.browse(sfit_issue_ids).read(['remote_id'])
