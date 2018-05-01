@@ -123,7 +123,7 @@ def ssh_git_clone(USERNAME, BRANCH):
             'USERNAME': USERNAME,
         }))
     if not buildout:
-        print "Buildout does not exist, cloning into home dir..."
+        print "Buildout does not exist, cloning into home dir...",USERNAME
         os.system("ssh {USERNAME} 'git clone git@github.com:sunflowerit/custom-installations.git --branch {BRANCH} --single-branch buildout'".format(**{
             'USERNAME': USERNAME,
             'BRANCH': BRANCH,
@@ -364,8 +364,8 @@ def install_odoo(instance=False, url=False, version=False, type='full', email=Fa
         BRANCH = '{0}.0-custom-standard'.format(version)
         CFG = 'odoo{0}-standard.cfg'.format(version)
         URL = url or instance+'.1systeem.nl'
-        # PASSWORD = get_password()
-        # PORT = get_port()
+        PASSWORD = get_password()
+        PORT = get_port()
         INSTANCE = instance
         USERNAME = "odoo-"+INSTANCE
         DBUSER = "odoo"+INSTANCE
