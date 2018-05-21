@@ -64,6 +64,7 @@ sfit_odoo = odoorpc.ODOO('sunflower.1systeem.nl',
     protocol='jsonrpc+ssl', port=443, opener=opener)
 sfit_odoo.login('odoo_sunflower', odoo_username, odoo_password)
 sfit_issue_obj = sfit_odoo.env['project.issue']
+sfit_project_obj = sfit_odoo.env['project.project']
 
 # Check for relevant issues at Therp
 therp_project_ids = therp_project_obj.search([
@@ -97,14 +98,19 @@ issues_to_sfit = set(therp_issue_ids) - set(sfit_remote_ids)
 tasks_to_sfit = set(scrum_task_ids) - set(sfit_remote_ids)
 
 # find id of our internal Therp project
-therp_project_id = sfit_odoo.env['project.project'].search([
+therp_project_id = sfit_project_obj.search([
     ('name', 'ilike', '%Therp%')
 ])
 if not therp_project_id:
     print "Therp project not found in SFIT Odoo"
     sys.exit(1)
 therp_project_id = therp_project_id[0]
-print "Therp project found, id = {}".format(therp_project_id)
+therp_account_id = sfit_project_obj.browse(therp_project_id).read([
+    'analytic_account_id'
+])[0]['analytic_account_id'][0]
+print "Therp project found, id = {}, account = {}".format(
+    therp_project_id, therp_account_id
+)
 
 # List of issues to import from Therp  
 print 'issues to be copied from Therp:'
@@ -141,11 +147,12 @@ print 'Scrum',
 for remote in scrum_task_info:
     print '.',
     new_issue = sfit_issue_obj.create({
-      'name': u'Scrum #{} {}'.format(remote['id'], remote['name']),
-      'description': remote['description'],
-      'remote_id': remote['id'],
-      'project_id': therp_project_id,
-      'remote_project_id': remote['project_id']
+        'name': u'Scrum #{} {}'.format(remote['id'], remote['name']),
+        'description': remote['description'],
+        'remote_id': remote['id'],
+        'project_id': therp_project_id,
+        'analytic_account_id': therp_account_id,
+        'remote_project_id': remote['project_id']
     })
 print
 
