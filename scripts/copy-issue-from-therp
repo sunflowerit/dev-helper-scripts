@@ -51,6 +51,13 @@ therp_odoo = odoorpc.ODOO('helpdesk.therp.nl',
 therp_odoo.login('odointprd80-helpdesk', therp_username, therp_password)
 therp_project_obj = therp_odoo.env['project.project']
 therp_issue_obj = therp_odoo.env['project.issue']
+therp_gj_user_id = therp_odoo.env['res.users'].search([
+    ('login', '=', 'gj@sunflowerweb.nl')
+], limit=1)
+therp_relevant_user_ids = [therp_odoo.env.uid]
+if therp_gj_user_id:
+    therp_relevant_user_ids.append(therp_gj_user_id[0])
+print 'Relevant user ids Therp: {}'.format(therp_relevant_user_ids)
 
 # connect to Scrum Odoo
 scrum_odoo = odoorpc.ODOO('scrum.therp.nl',
@@ -58,6 +65,13 @@ scrum_odoo = odoorpc.ODOO('scrum.therp.nl',
 scrum_odoo.login('odoextscr80', scrum_username, scrum_password)
 scrum_project_obj = scrum_odoo.env['project.project']
 scrum_task_obj = scrum_odoo.env['project.task']
+scrum_gj_user_id = scrum_odoo.env['res.users'].search([
+    ('login', '=', 'gj@sunflowerweb.nl')
+], limit=1)
+scrum_relevant_user_ids = [scrum_odoo.env.uid]
+if scrum_gj_user_id:
+    scrum_relevant_user_ids.append(scrum_gj_user_id[0])
+print 'Relevant user ids Scrum: {}'.format(scrum_relevant_user_ids)
 
 # connect to our Odoo
 sfit_odoo = odoorpc.ODOO('sunflower.1systeem.nl',
@@ -74,7 +88,7 @@ therp_project_ids = therp_project_obj.search([
 therp_issue_ids = therp_issue_obj.search([
     ('project_id','in',therp_project_ids),
     ('stage_id.state', 'not in', ['done', 'cancelled']),
-    ('user_id', '=', therp_odoo.env.uid)
+    ('user_id', 'in', therp_relevant_user_ids)
 ])
 
 # Check for relevant tasks at Scrum
@@ -85,7 +99,7 @@ scrum_project_ids = scrum_project_obj.search([
 scrum_task_ids = scrum_task_obj.search([
     ('project_id', 'in', scrum_project_ids),
     ('stage_id.name', 'not in', ['Verwerkt', 'Geannuleerd']),
-    ('user_id', '=', scrum_odoo.env.uid)
+    ('user_id', '=', scrum_relevant_user_ids)
 ])
 
 # Subtract issues and tasks already imported
@@ -134,11 +148,11 @@ print 'Therp',
 for remote in therp_issue_info:
     print '.',
     new_issue = sfit_issue_obj.create({
-      'name': u'Therp #{} {}'.format(remote['id'], remote['name']),
-      'description': remote['description'],
-      'remote_id': remote['id'],
-      'project_id': therp_project_id,
-      'remote_project_id': remote['project_id']
+        'name': u'Therp #{} {}'.format(remote['id'], remote['name']),
+        'description': remote['description'],
+        'remote_id': remote['id'],
+        'project_id': therp_project_id,
+        'remote_project_id': remote['project_id']
     })
 print
 
