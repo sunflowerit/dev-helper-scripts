@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 import argparse
 import contextlib
@@ -86,7 +87,7 @@ if not hours_ids:
     sys.exit(0)
 hours = hours_obj.browse(hours_ids)
 hours_read = hours.read(['date', 'issue_id', 'name', 'user_id', 'unit_amount'])
-hours_readable = ['{}-{}-{}-{}'.format(
+hours_readable = [u'{}-{}-{}-{}'.format(
     a['date'], a['unit_amount'], a['name'], a['user_id'][1])
     for a in hours_read]
 print("\n".join(hours_readable))
@@ -145,7 +146,7 @@ for hour in hours_read:
         sys.stdout.flush()
         therp_hours_obj.unlink(therp_hours_ids)
         print 'Done'
-    if "Dan" in user_name or "Terrence" in user_name:
+    if not ("Tom" in user_name):
         amount = math.ceil(amount * 0.5 * 4.0) * 0.25
     hour_data.append({
         'date': hour['date'],
@@ -155,7 +156,7 @@ for hour in hours_read:
         'account_id': project_analytic_account_id,
         'journal_id': 6,
         'to_invoice': 1,
-        'name': '{} ({})'.format(hour['name'], user_name)
+        'name': u'{} ({})'.format(hour['name'], user_name)
     })
 
 print 'Creating hour records at Therp...'
