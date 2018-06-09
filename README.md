@@ -1,6 +1,12 @@
 To install or upgrade:
 
-    pip install https://github.com/sunflowerit/dev-helper-scripts/archive/master.zip
+    pip install --user https://github.com/sunflowerit/dev-helper-scripts/archive/master.zip
+
+Add to your `$HOME/.profile`:
+
+    if [ -d "$HOME/.local/bin" ] ; then
+        PATH="$HOME/.local/bin:$PATH"
+    fi
 
 To add pylint-odoo to PyCharm:
 
