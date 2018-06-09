@@ -22,10 +22,6 @@ Place your Sunflower Odoo credentials in your $HOME/.netrc:
 
     machine odoosunflower login dan@sunflowerweb.nl password danspassword    
 
-And if you want to use toggl, add the key to your $HOME/.netrc:
-
-    machine issuetoggl login myworkspaceno password myapikey
-
 To update the Therp scripts:
 
     git clone git@gitlab.therp.nl:therp/deployment-scripts.git therp-scripts
