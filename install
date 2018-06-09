@@ -1,4 +1,0 @@
-#!/bin/bash
-mkdir -p $HOME/bin
-DIR=$(cd "$(dirname "$0")"; pwd)
-ln -sf $DIR/scripts/* $HOME/bin

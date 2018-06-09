@@ -11,7 +11,18 @@ if sys.version_info < (2, 6):
 
 # a sufficient version of pip is needed to parse Odoo requirement file
 # version 1.4.1 is the one required by reportlab anyway
-requires = ['anybox.recipe.odoo']
+requires = [
+    'togglwrapper',
+    'requests',
+    'odoorpc',
+    'pyOpenSSL',
+    'ndg-httpsclient',
+    'pyasn1',
+    'iso8601',
+    'pytz',
+    'python-dateutil',
+    'pylint-odoo',
+]
 
 if sys.version_info < (2, 7):
     requires.append('ordereddict')
@@ -22,7 +33,7 @@ setup(
     version=version,
     author="Sunflower IT",
     author_email="info@sunflowerweb.nl",
-    description="Buildout scripts fto be used internally by the developer to work with Odoo",
+    description="Scripts to be used internally by the developer to work with Odoo",
     license="AGPLv3+",
     url="https://github.com/sunflowerit",
     packages=find_packages(),

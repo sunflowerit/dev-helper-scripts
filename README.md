@@ -15,10 +15,6 @@ To add pylint-odoo to PyCharm:
 
 For the issue script:
 
-    pip install requests
-    pip install odoorpc
-    pip install pyOpenSSL ndg-httpsclient pyasn1
-    pip install togglwrapper iso8601 pytz python-dateutil
     touch $HOME/.netrc
     chmod 600 $HOME/.netrc
 
@@ -29,10 +25,6 @@ Place your Sunflower Odoo credentials in your $HOME/.netrc:
 And if you want to use toggl, add the key to your $HOME/.netrc:
 
     machine issuetoggl login myworkspaceno password myapikey
-
-For pylint, install:
-
-    pip install --upgrade --pre pylint-odoo
 
 To update the Therp scripts:
 
