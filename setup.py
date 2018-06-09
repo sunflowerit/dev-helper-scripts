@@ -12,7 +12,6 @@ if sys.version_info < (2, 6):
 # a sufficient version of pip is needed to parse Odoo requirement file
 # version 1.4.1 is the one required by reportlab anyway
 requires = [
-    'togglwrapper',
     'requests',
     'odoorpc',
     'pyOpenSSL',
