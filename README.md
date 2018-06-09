@@ -1,6 +1,6 @@
-To install:
+To install or upgrade:
 
-    ln -sf $(pwd)/scripts/* $HOME/bin
+    pip install https://github.com/sunflowerit/dev-helper-scripts/archive/master.zip
 
 To add pylint-odoo to PyCharm:
 

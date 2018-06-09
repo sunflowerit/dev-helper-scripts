@@ -52,6 +52,20 @@ setup(
         'Topic :: Software Development :: Build Tools',
         'Topic :: Software Development :: Libraries :: Python Modules',
     ],
-    scripts=['dev/helper/scripts/psql-odoo'],
+    scripts=[
+        'bash-scripts/psql-odoo',
+        'bash-scripts/upgrade-module',
+        'bash-scripts/install-module',
+        'bash-scripts/pylint-odoo',
+        'bash-scripts/test-module',
+        'bash-scripts/update-buildout',
+        'bash-scripts/create-compendium',
+        'bash-scripts/set-version',
+        'bash-scripts/translate-module',
+        'dev/helper/scripts/anonymize_csv',
+        'dev/helper/scripts/copy-hours-to-therp',
+        'dev/helper/scripts/copy-issue-from-therp',
+        'dev/helper/scripts/issue',
+    ],
 
 )
