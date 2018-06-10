@@ -6,7 +6,7 @@ source "$INCLUDEDIR/common-funcs.sh"
 # getopt test
 getopt --test > /dev/null
 if [[ $? -ne 4 ]]; then
-    echo "I’m sorry, `getopt --test` failed in this environment."
+    echo "Sorry, `getopt --test` failed in this environment."
     exit 1
 fi
 
