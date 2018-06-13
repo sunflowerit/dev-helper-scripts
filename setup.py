@@ -52,6 +52,7 @@ setup(
         'Topic :: Software Development :: Libraries :: Python Modules',
     ],
     scripts=[
+        'bash-scripts/common-funcs.sh',
         'bash-scripts/psql-odoo',
         'bash-scripts/upgrade-module',
         'bash-scripts/install-module',
