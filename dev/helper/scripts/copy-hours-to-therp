@@ -18,7 +18,6 @@ import ssl
 import subprocess
 import sys
 import time
-from togglwrapper import Toggl
 import urllib2
 import warnings
 
