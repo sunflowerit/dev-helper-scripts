@@ -10,7 +10,7 @@ Add to your `$HOME/.profile`:
 
 To install or upgrade as root:
 
-    pip install --upgrade https://github.com/sunflowerit/dev-helper-scripts/archive/master.zip
+    sudo pip install --upgrade https://github.com/sunflowerit/dev-helper-scripts/archive/master.zip
 
 To add pylint-odoo to PyCharm:
 
