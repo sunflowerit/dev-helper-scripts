@@ -1,12 +1,16 @@
-To install or upgrade:
+To install or upgrade as user (note: on Ubuntu-like systems this will fail because python-cryptography egg wont install as non-root):
 
-    pip install --user https://github.com/sunflowerit/dev-helper-scripts/archive/master.zip
+    pip install --upgrade --user https://github.com/sunflowerit/dev-helper-scripts/archive/master.zip
 
 Add to your `$HOME/.profile`:
 
     if [ -d "$HOME/.local/bin" ] ; then
         PATH="$HOME/.local/bin:$PATH"
     fi
+
+To install or upgrade as root:
+
+    pip install --upgrade https://github.com/sunflowerit/dev-helper-scripts/archive/master.zip
 
 To add pylint-odoo to PyCharm:
 
