@@ -151,6 +151,7 @@ for remote in therp_issue_info:
         'description': remote['description'],
         'remote_id': remote['id'],
         'project_id': therp_project_id,
+        'analytic_account_id': therp_account_id,
         'remote_project_id': remote['project_id']
     })
 print
