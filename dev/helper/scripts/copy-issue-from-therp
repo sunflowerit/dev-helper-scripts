@@ -85,7 +85,7 @@ therp_project_ids = therp_project_obj.search([
     ('name', 'ilike', 'SV%')
 ])
 therp_issue_ids = therp_issue_obj.search([
-    ('project_id','in',therp_project_ids),
+    ('project_id', 'in', therp_project_ids),
     ('stage_id.state', 'not in', ['done', 'cancelled']),
     ('user_id', 'in', therp_relevant_user_ids)
 ])
@@ -97,7 +97,7 @@ scrum_project_ids = scrum_project_obj.search([
 ])
 scrum_task_ids = scrum_task_obj.search([
     ('project_id', 'in', scrum_project_ids),
-    ('stage_id.state', 'not in', ['done', 'cancelled']),
+    ('stage_id.name', 'not in', ['Done', 'Cancelled', 'Verwerkt', 'Geannuleerd']),
     ('user_id', 'in', scrum_relevant_user_ids)
 ])
 
