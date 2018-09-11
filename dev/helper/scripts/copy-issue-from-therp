@@ -97,8 +97,8 @@ scrum_project_ids = scrum_project_obj.search([
 ])
 scrum_task_ids = scrum_task_obj.search([
     ('project_id', 'in', scrum_project_ids),
-    ('stage_id.name', 'not in', ['Verwerkt', 'Geannuleerd']),
-    ('user_id', '=', scrum_relevant_user_ids)
+    ('stage_id.state', 'not in', ['done', 'cancelled']),
+    ('user_id', 'in', scrum_relevant_user_ids)
 ])
 
 # Subtract issues and tasks already imported
