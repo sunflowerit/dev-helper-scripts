@@ -147,6 +147,8 @@ for hour in hours_read:
         print 'Done'
     if not ("Tom" in user_name):
         amount = math.ceil(amount * 0.5 * 4.0) * 0.25
+    if ("Kevin" in user_name):
+        amount = math.ceil(amount * 0.25 * 4.0) * 0.25
     hour_data.append({
         'date': hour['date'],
         'unit_amount': amount,
