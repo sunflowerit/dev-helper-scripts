@@ -152,7 +152,6 @@ for hour in hours_read:
     hour_data.append({
         'date': hour['date'],
         'unit_amount': amount,
-        'issue_id': remote_id,
         'user_id': therp_user_id,
         'account_id': project_analytic_account_id,
         'journal_id': 6,
@@ -161,9 +160,8 @@ for hour in hours_read:
     })
 
 print 'Creating hour records at Therp...'
-pprint(hour_data)
 for record in hour_data:
-    sys.stdout.write('.')
+    pprint(record)
     sys.stdout.flush()
     therp_hours_obj.create(record)
 
