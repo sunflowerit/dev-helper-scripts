@@ -1,16 +1,10 @@
-To install or upgrade as user (note: on Ubuntu-like systems this will fail because python-cryptography egg wont install as non-root):
+To install the latest version in a virtualenv:
 
-    pip install --upgrade --user https://github.com/sunflowerit/dev-helper-scripts/archive/master.zip
+    pip install --upgrade https://github.com/sunflowerit/dev-helper-scripts/archive/master.zip
 
-Add to your `$HOME/.profile`:
+To install the latest version systemwide:
 
-    if [ -d "$HOME/.local/bin" ] ; then
-        PATH="$HOME/.local/bin:$PATH"
-    fi
-
-To install or upgrade as root:
-
-    sudo pip install --upgrade https://github.com/sunflowerit/dev-helper-scripts/archive/master.zip
+    pip install --upgrade https://github.com/sunflowerit/dev-helper-scripts/archive/master.zip
 
 To add pylint-odoo to PyCharm:
 
@@ -36,4 +30,3 @@ To update the Therp scripts:
 
     git clone git@gitlab.therp.nl:therp/deployment-scripts.git therp-scripts
     ln -sf $(pwd)/therp-scripts/bin/oe-get-buildout-versions.sh $HOME/bin
-
