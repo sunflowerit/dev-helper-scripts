@@ -145,10 +145,16 @@ for hour in hours_read:
         sys.stdout.flush()
         therp_hours_obj.unlink(therp_hours_ids)
         print 'Done'
-    if ("Kevin" in user_name):
-        amount = math.ceil(amount * 0.25 * 4.0) * 0.25
-    elif not ("Tom" in user_name):
-        amount = math.ceil(amount * 0.5 * 4.0) * 0.25
+    user_name_lower = user_name.lower()
+    if "kevin" in user_name_lower:
+        factor = 0.25
+    elif "Gijs" in user_name_lower:
+        factor = 0.75
+    elif "Tom" in user_name_lower:
+        factor = 1.0
+    else:
+        factor = 0.5
+    amount = math.ceil(amount * factor * 4.0) * 0.25
     hour_data.append({
         'date': hour['date'],
         'unit_amount': amount,
