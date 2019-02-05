@@ -1,8 +1,8 @@
-To install the latest version in a virtualenv:
-
-    pip install --upgrade https://github.com/sunflowerit/dev-helper-scripts/archive/master.zip
-
 To install the latest version systemwide:
+
+    sudo pip install --upgrade https://github.com/sunflowerit/dev-helper-scripts/archive/master.zip
+
+To install the latest version in a virtualenv:
 
     pip install --upgrade https://github.com/sunflowerit/dev-helper-scripts/archive/master.zip
 
