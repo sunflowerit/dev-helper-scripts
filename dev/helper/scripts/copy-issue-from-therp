@@ -45,11 +45,20 @@ ctx.verify_mode = ssl.CERT_NONE
 opener = urllib2.build_opener(urllib2.HTTPSHandler(context=ctx))
 
 # connect to Therp Odoo
-therp_odoo = odoorpc.ODOO('helpdesk.therp.nl',
-    protocol='jsonrpc+ssl', port=443, opener=opener)
-therp_odoo.login('odointprd80-helpdesk', therp_username, therp_password)
+for i in range(5):
+    try:
+        therp_odoo = odoorpc.ODOO(
+            'helpdesk.therp.nl',
+            protocol='jsonrpc+ssl', port=443, opener=opener)
+        therp_odoo.login(
+            'odointprd10-helpdesk',
+            therp_username, therp_password)
+        break
+    except ssl.SSLError:
+        continue
+
 therp_project_obj = therp_odoo.env['project.project']
-therp_issue_obj = therp_odoo.env['project.issue']
+therp_issue_obj = therp_odoo.env['project.task']
 therp_gj_user_id = therp_odoo.env['res.users'].search([
     ('login', '=', 'gj@sunflowerweb.nl')
 ], limit=1)
@@ -81,7 +90,6 @@ sfit_project_obj = sfit_odoo.env['project.project']
 
 # Check for relevant issues at Therp
 therp_project_ids = therp_project_obj.search([
-    ('state', '=', 'open'),
     ('name', 'ilike', 'SV%')
 ])
 therp_issue_ids = therp_issue_obj.search([
@@ -92,7 +100,6 @@ therp_issue_ids = therp_issue_obj.search([
 
 # Check for relevant tasks at Scrum
 scrum_project_ids = scrum_project_obj.search([
-    ('state', '=', 'open'),
     ('name', 'ilike', 'Regio%')
 ])
 scrum_task_ids = scrum_task_obj.search([
