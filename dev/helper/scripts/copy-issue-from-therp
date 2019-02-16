@@ -44,7 +44,7 @@ ctx.check_hostname = False
 ctx.verify_mode = ssl.CERT_NONE
 opener = urllib2.build_opener(urllib2.HTTPSHandler(context=ctx))
 
-# connect to Therp Odoo
+# connect to helpdesk.therp.nl and scrum.therp.nl
 for i in range(5):
     try:
         therp_odoo = odoorpc.ODOO(
@@ -53,8 +53,20 @@ for i in range(5):
         therp_odoo.login(
             'odointprd10-helpdesk',
             therp_username, therp_password)
+        scrum_odoo = odoorpc.ODOO(
+            'scrum.therp.nl',
+            protocol='jsonrpc+ssl', port=443, opener=opener)
+        scrum_odoo.login(
+            'odoextscr80',
+             scrum_username, scrum_password)
+        sfit_odoo = odoorpc.ODOO(
+            'sunflower.1systeem.nl',
+            protocol='jsonrpc+ssl', port=443, opener=opener)
+        sfit_odoo.login(
+            'odoo_sunflower',
+            odoo_username, odoo_password)
         break
-    except ssl.SSLError:
+    except (ssl.SSLError, urllib2.URLError):
         continue
 
 therp_project_obj = therp_odoo.env['project.project']
@@ -67,10 +79,6 @@ if therp_gj_user_id:
     therp_relevant_user_ids.append(therp_gj_user_id[0])
 print 'Relevant user ids Therp: {}'.format(therp_relevant_user_ids)
 
-# connect to Scrum Odoo
-scrum_odoo = odoorpc.ODOO('scrum.therp.nl',
-    protocol='jsonrpc+ssl', port=443, opener=opener)
-scrum_odoo.login('odoextscr80', scrum_username, scrum_password)
 scrum_project_obj = scrum_odoo.env['project.project']
 scrum_task_obj = scrum_odoo.env['project.task']
 scrum_gj_user_id = scrum_odoo.env['res.users'].search([
@@ -81,10 +89,6 @@ if scrum_gj_user_id:
     scrum_relevant_user_ids.append(scrum_gj_user_id[0])
 print 'Relevant user ids Scrum: {}'.format(scrum_relevant_user_ids)
 
-# connect to our Odoo
-sfit_odoo = odoorpc.ODOO('sunflower.1systeem.nl',
-    protocol='jsonrpc+ssl', port=443, opener=opener)
-sfit_odoo.login('odoo_sunflower', odoo_username, odoo_password)
 sfit_issue_obj = sfit_odoo.env['project.issue']
 sfit_project_obj = sfit_odoo.env['project.project']
 
