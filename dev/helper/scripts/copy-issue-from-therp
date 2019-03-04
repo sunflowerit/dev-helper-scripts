@@ -53,19 +53,29 @@ for i in range(5):
         therp_odoo.login(
             'odointprd10-helpdesk',
             therp_username, therp_password)
+    except (ssl.SSLError, urllib2.URLError):
+        continue
+
+for i in range(5):
+    try:
         scrum_odoo = odoorpc.ODOO(
             'scrum.therp.nl',
             protocol='jsonrpc+ssl', port=443, opener=opener)
         scrum_odoo.login(
             'odoextscr80',
              scrum_username, scrum_password)
+    except (ssl.SSLError, urllib2.URLError):
+        continue
+
+
+for i in range(5):
+    try:
         sfit_odoo = odoorpc.ODOO(
             'sunflower.1systeem.nl',
             protocol='jsonrpc+ssl', port=443, opener=opener)
         sfit_odoo.login(
             'odoo_sunflower',
             odoo_username, odoo_password)
-        break
     except (ssl.SSLError, urllib2.URLError):
         continue
 

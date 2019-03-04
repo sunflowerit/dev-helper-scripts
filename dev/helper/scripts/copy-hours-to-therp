@@ -3,15 +3,12 @@
 
 import argparse
 import contextlib
-from datetime import date, timedelta
-from dateutil.relativedelta import relativedelta
 import getopt
 import json
 import math
 import netrc
 import odoorpc
 import os
-from pprint import pprint
 import re
 import requests
 import ssl
@@ -20,6 +17,9 @@ import sys
 import time
 import urllib2
 import warnings
+from datetime import date, timedelta
+from dateutil.relativedelta import relativedelta
+from pprint import pprint
 
 # get login details from netRC file
 netrc_info = netrc.netrc()
@@ -42,10 +42,27 @@ ctx.check_hostname = False
 ctx.verify_mode = ssl.CERT_NONE
 opener = urllib2.build_opener(urllib2.HTTPSHandler(context=ctx))
 
-# connect to our Odoo
-sfit_odoo = odoorpc.ODOO('sunflower.1systeem.nl',
-    protocol='jsonrpc+ssl', port=443, opener=opener)
-sfit_odoo.login('odoo_sunflower', odoo_username, odoo_password)
+for i in range(5):
+    try:
+        therp_odoo = odoorpc.ODOO(
+            'helpdesk.therp.nl',
+            protocol='jsonrpc+ssl', port=443, opener=opener)
+        therp_odoo.login(
+            'odointprd10-helpdesk',
+            therp_username, therp_password)
+    except (ssl.SSLError, urllib2.URLError):
+        continue
+
+for i in range(5):
+    try:
+        sfit_odoo = odoorpc.ODOO(
+            'sunflower.1systeem.nl',
+            protocol='jsonrpc+ssl', port=443, opener=opener)
+        sfit_odoo.login(
+            'odoo_sunflower',
+            odoo_username, odoo_password)
+    except (ssl.SSLError, urllib2.URLError):
+        continue
 
 # find id of Therp project
 project_obj = sfit_odoo.env['project.project']
@@ -100,17 +117,13 @@ issue_trans = dict((r['id'], r['remote_id'] or r['remote_id']) for r in remote_i
 
 print "issue_ids", issue_ids
 print "remote_ids",remote_ids
-# connect to Therp Odoo
-therp_odoo = odoorpc.ODOO('helpdesk.therp.nl',
-    protocol='jsonrpc+ssl', port=443, opener=opener)
-therp_odoo.login('odointprd80-helpdesk', therp_username, therp_password)
 
-therp_issue_obj = therp_odoo.env['project.issue']
+therp_issue_obj = therp_odoo.env['project.task']
 therp_project_obj = therp_odoo.env['project.project']
-therp_hours_obj = therp_odoo.env['hr.analytic.timesheet']
+therp_hours_obj = therp_odoo.env['account.analytic.line']
 
-# get our projects id on the Therp ,'state' = 'open'
-project_ids = therp_project_obj.search([('state', '=', 'open')])
+# get our projects id on the Therp
+project_ids = therp_project_obj.search([])
 # get the 'remote_ids'
 remote_issue_ids = [issue_trans.get(issue_id) for issue_id in issue_ids]
 # get Therp issue_id belong to sunfloweit and thier project_id
@@ -121,30 +134,22 @@ account_id = therp_project_obj.read(project_ids, ['analytic_account_id'])
 
 # [dict] return the project_id for 'issue_id'
 project_issue_trans = dict((r['id'], r['project_id'][0] or r['id']) for r in issue_project_id)
-# [dict ] retuen the analytic_account_id for project_id
-project_analytic_trans = dict((r['id'], r['analytic_account_id'][0] or r['id']) for r in account_id)
+# [dict] return the analytic_account_id for project_id
+project_analytic_trans = dict(
+(r['id'], r['analytic_account_id'][0] or r['id']) for r in account_id)
 
 hour_data = []
 print 'Collecting information on hours to copy...'
 therp_user_id = therp_odoo.env.uid
+accounts_to_delete_for = set()
 for hour in hours_read:
     user_name = hour['user_id'][1]
     amount = hour['unit_amount']
     issue_id = hour['issue_id'][0]
     remote_id = issue_trans.get(issue_id, False)
-    project_id = project_issue_trans.get(remote_id,False)
+    project_id = project_issue_trans.get(remote_id, 152)
     project_analytic_account_id = project_analytic_trans.get(project_id, 304)
-    therp_hours_domain = [
-    ('account_id', '=', project_analytic_account_id),
-    ('date', '>=', date_start_str),
-    ('date', '<=', date_end_str)
-    ] 
-    therp_hours_ids = therp_hours_obj.search(therp_hours_domain)
-    if therp_hours_ids:
-        sys.stdout.write("Found. Deleting...")
-        sys.stdout.flush()
-        therp_hours_obj.unlink(therp_hours_ids)
-        print 'Done'
+    accounts_to_delete_for.add(project_analytic_account_id)
     user_name_lower = user_name.lower()
     if "kevin" in user_name_lower:
         factor = 0.25
@@ -159,11 +164,27 @@ for hour in hours_read:
         'date': hour['date'],
         'unit_amount': amount,
         'user_id': therp_user_id,
+        'project_id': project_id,
+        'task_id': remote_id if remote_id > 2000 else None,
         'account_id': project_analytic_account_id,
         'journal_id': 6,
         'to_invoice': 1,
         'name': u'{} ({})'.format(hour['name'], user_name)
     })
+
+# delete previous hours
+therp_hours_domain = [
+    ('account_id', 'in', list(accounts_to_delete_for)),
+    ('date', '>=', date_start_str),
+    ('date', '<=', date_end_str)
+] 
+therp_hours_ids = therp_hours_obj.search(therp_hours_domain)
+if therp_hours_ids:
+    sys.stdout.write("Found. Deleting...")
+    sys.stdout.write(unicode(therp_hours_ids))
+    sys.stdout.flush()
+    therp_hours_obj.unlink(therp_hours_ids)
+    print 'Done'
 
 print 'Creating hour records at Therp...'
 for record in hour_data:
@@ -171,4 +192,4 @@ for record in hour_data:
     sys.stdout.flush()
     therp_hours_obj.create(record)
 
-print "Hours copied! Check your work at https://helpdesk.therp.nl/web#page=0&limit=80&view_type=list&model=hr.analytic.timesheet&action=479"
+print "Hours copied! Check your work at https://helpdesk.therp.nl/web#min=1&limit=80&view_type=list&model=account.analytic.line&menu_id=359&action=1536"
