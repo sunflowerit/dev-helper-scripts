@@ -141,7 +141,6 @@ project_analytic_trans = dict(
 hour_data = []
 print 'Collecting information on hours to copy...'
 therp_user_id = therp_odoo.env.uid
-accounts_to_delete_for = set()
 for hour in hours_read:
     user_name = hour['user_id'][1]
     amount = hour['unit_amount']
@@ -149,7 +148,6 @@ for hour in hours_read:
     remote_id = issue_trans.get(issue_id, False)
     project_id = project_issue_trans.get(remote_id, 152)
     project_analytic_account_id = project_analytic_trans.get(project_id, 304)
-    accounts_to_delete_for.add(project_analytic_account_id)
     user_name_lower = user_name.lower()
     if "kevin" in user_name_lower:
         factor = 0.25
@@ -174,9 +172,9 @@ for hour in hours_read:
 
 # delete previous hours
 therp_hours_domain = [
-    ('account_id', 'in', list(accounts_to_delete_for)),
     ('date', '>=', date_start_str),
-    ('date', '<=', date_end_str)
+    ('date', '<=', date_end_str),
+    ('user_id', '=', therp_user_id),
 ] 
 therp_hours_ids = therp_hours_obj.search(therp_hours_domain)
 if therp_hours_ids:
