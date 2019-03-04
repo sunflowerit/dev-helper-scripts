@@ -151,9 +151,9 @@ for hour in hours_read:
     user_name_lower = user_name.lower()
     if "kevin" in user_name_lower:
         factor = 0.25
-    elif "Gijs" in user_name_lower:
+    elif "gijs" in user_name_lower:
         factor = 0.75
-    elif "Tom" in user_name_lower:
+    elif "tom" in user_name_lower:
         factor = 1.0
     else:
         factor = 0.5
