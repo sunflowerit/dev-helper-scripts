@@ -74,7 +74,7 @@ for i in range(5):
             'sunflower.1systeem.nl',
             protocol='jsonrpc+ssl', port=443, opener=opener)
         sfit_odoo.login(
-            'odoo_sunflower',
+            'sunflowerdatabase',
             odoo_username, odoo_password)
     except (ssl.SSLError, urllib2.URLError):
         continue
