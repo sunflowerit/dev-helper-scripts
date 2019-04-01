@@ -106,12 +106,19 @@ hours_read = hours.read(['date', 'issue_id', 'name', 'user_id', 'unit_amount'])
 hours_readable = [u'{}-{}-{}-{}'.format(
     a['date'], a['unit_amount'], a['name'], a['user_id'][1])
     for a in hours_read]
-print("\n".join(hours_readable))
+print(u"\n".join(hours_readable))
 hours_total = sum([a.unit_amount for a in hours])
 print "TOTAL: {}".format(hours_total)
 
 # Getting issue information
-issue_ids = [hour.get('issue_id', [None])[0] for hour in hours_read if hour]
+issue_ids = []
+for hour in hours_read:
+    try:
+        issue_ids.append(hour.get('issue_id', [None])[0])
+    except TypeError:
+        print "Hour record has no issue id:"
+        pprint(hour)
+        sys.exit(1)
 remote_ids = issue_obj.browse(issue_ids).read(['remote_id'])
 issue_trans = dict((r['id'], r['remote_id'] or r['remote_id']) for r in remote_ids)
 
