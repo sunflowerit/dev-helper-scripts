@@ -177,11 +177,20 @@ for hour in hours_read:
         'name': u'{} ({})'.format(hour['name'], user_name)
     })
 
+# identify remote 'reiskosten' project
+reiskosten_proj_ids = therp_project_obj.search(
+    [('name', 'ilike', '%Reiskosten%')])
+if not reiskosten_proj_ids:
+    print "Reiskosten project not found in Therp Odoo"
+    sys.exit(1)
+reiskosten_proj_id = reiskosten_proj_ids[0]
+
 # delete previous hours
 therp_hours_domain = [
     ('date', '>=', date_start_str),
     ('date', '<=', date_end_str),
     ('user_id', '=', therp_user_id),
+    ('project_id', '!=', reiskosten_proj_id),
 ] 
 therp_hours_ids = therp_hours_obj.search(therp_hours_domain)
 if therp_hours_ids:
