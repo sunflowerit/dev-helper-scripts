@@ -31,12 +31,6 @@ if not auth_odootherp:
   print "machine odootherp login myuser password mypassword"
   sys.exit(0)
 therp_username, therp_host, therp_password = auth_odootherp
-auth_odooscrum = netrc_info.authenticators('odooscrum')
-if not auth_odooscrum:
-  print "In your $HOME/.netrc file place:"
-  print "machine odooscrum login myuser password mypassword"
-  sys.exit(0)
-scrum_username, scrum_host, scrum_password = auth_odooscrum
 
 # create a context to connect without checking for https cert
 ctx = ssl.create_default_context()
@@ -44,7 +38,7 @@ ctx.check_hostname = False
 ctx.verify_mode = ssl.CERT_NONE
 opener = urllib2.build_opener(urllib2.HTTPSHandler(context=ctx))
 
-# connect to helpdesk.therp.nl and scrum.therp.nl
+# connect to helpdesk.therp.nl
 for i in range(5):
     try:
         therp_odoo = odoorpc.ODOO(
@@ -58,18 +52,6 @@ for i in range(5):
 
 for i in range(5):
     try:
-        scrum_odoo = odoorpc.ODOO(
-            'scrum.therp.nl',
-            protocol='jsonrpc+ssl', port=443, opener=opener)
-        scrum_odoo.login(
-            'odoextscr80',
-             scrum_username, scrum_password)
-    except (ssl.SSLError, urllib2.URLError):
-        continue
-
-
-for i in range(5):
-    try:
         sfit_odoo = odoorpc.ODOO(
             'sunflower.1systeem.nl',
             protocol='jsonrpc+ssl', port=443, opener=opener)
@@ -80,7 +62,7 @@ for i in range(5):
         continue
 
 therp_project_obj = therp_odoo.env['project.project']
-therp_issue_obj = therp_odoo.env['project.task']
+therp_task_obj = therp_odoo.env['project.task']
 therp_gj_user_id = therp_odoo.env['res.users'].search([
     ('login', '=', 'gj@sunflowerweb.nl')
 ], limit=1)
@@ -89,47 +71,28 @@ if therp_gj_user_id:
     therp_relevant_user_ids.append(therp_gj_user_id[0])
 print 'Relevant user ids Therp: {}'.format(therp_relevant_user_ids)
 
-scrum_project_obj = scrum_odoo.env['project.project']
-scrum_task_obj = scrum_odoo.env['project.task']
-scrum_gj_user_id = scrum_odoo.env['res.users'].search([
-    ('login', '=', 'gj@sunflowerweb.nl')
-], limit=1)
-scrum_relevant_user_ids = [scrum_odoo.env.uid]
-if scrum_gj_user_id:
-    scrum_relevant_user_ids.append(scrum_gj_user_id[0])
-print 'Relevant user ids Scrum: {}'.format(scrum_relevant_user_ids)
-
 sfit_issue_obj = sfit_odoo.env['project.issue']
 sfit_project_obj = sfit_odoo.env['project.project']
 
-# Check for relevant issues at Therp
+# Check for relevant tasks at Therp
 therp_project_ids = therp_project_obj.search([
+    '|',
+    ('name', 'ilike', 'Regio%'),
     ('name', 'ilike', 'SV%')
 ])
-therp_issue_ids = therp_issue_obj.search([
+therp_task_ids = therp_task_obj.search([
     ('project_id', 'in', therp_project_ids),
     ('stage_id.state', 'not in', ['done', 'cancelled']),
     ('user_id', 'in', therp_relevant_user_ids)
 ])
 
-# Check for relevant tasks at Scrum
-scrum_project_ids = scrum_project_obj.search([
-    ('name', 'ilike', 'Regio%')
-])
-scrum_task_ids = scrum_task_obj.search([
-    ('project_id', 'in', scrum_project_ids),
-    ('stage_id.name', 'not in', ['Done', 'Cancelled', 'Verwerkt', 'Geannuleerd']),
-    ('user_id', 'in', scrum_relevant_user_ids)
-])
-
-# Subtract issues and tasks already imported
+# Subtract tasks already imported
 sfit_issue_ids = sfit_issue_obj.search([
-    ('remote_id', 'in', therp_issue_ids + scrum_task_ids)
+    ('remote_id', 'in', therp_task_ids),
 ])
 sfit_remote_ids = sfit_issue_obj.browse(sfit_issue_ids).read(['remote_id'])
-sfit_remote_ids = [remote.get('remote_id') for remote in sfit_remote_ids ]
-issues_to_sfit = set(therp_issue_ids) - set(sfit_remote_ids)
-tasks_to_sfit = set(scrum_task_ids) - set(sfit_remote_ids)
+sfit_remote_ids = [remote.get('remote_id') for remote in sfit_remote_ids]
+tasks_to_sfit = set(therp_task_ids) - set(sfit_remote_ids)
 
 # find id of our internal Therp project
 therp_project_id = sfit_project_obj.search([
@@ -146,26 +109,15 @@ print "Therp project found, id = {}, account = {}".format(
     therp_project_id, therp_account_id
 )
 
-# List of issues to import from Therp  
-print 'issues to be copied from Therp:'
-pprint.pprint(list(issues_to_sfit))
-therp_issue_info = therp_issue_obj.browse(issues_to_sfit).read([
-    'name', 'description', 'project_id'
-])
-
-# list of tasks to import from scrum
-print 'tasks to be copied from scrum:'
+# List of tasks to import from Therp  
+print 'tasks to be copied from Therp:'
 pprint.pprint(list(tasks_to_sfit))
-scrum_task_info = scrum_task_obj.browse(tasks_to_sfit).read([
+therp_task_info = therp_task_obj.browse(tasks_to_sfit).read([
     'name', 'description', 'project_id'
 ])
 
-# Import issues from Therp
-therp_issue_info = therp_issue_obj.browse(issues_to_sfit).read([
-    'name', 'description', 'project_id'
-])
 print 'Therp',
-for remote in therp_issue_info:
+for remote in therp_task_info:
     print '.',
     new_issue = sfit_issue_obj.create({
         'name': u'Therp #{} {}'.format(remote['id'], remote['name']),
@@ -176,18 +128,3 @@ for remote in therp_issue_info:
         'remote_project_id': remote['project_id']
     })
 print
-
-# Import tasks from Scrum
-print 'Scrum',
-for remote in scrum_task_info:
-    print '.',
-    new_issue = sfit_issue_obj.create({
-        'name': u'Scrum #{} {}'.format(remote['id'], remote['name']),
-        'description': remote['description'],
-        'remote_id': remote['id'],
-        'project_id': therp_project_id,
-        'analytic_account_id': therp_account_id,
-        'remote_project_id': remote['project_id']
-    })
-print
-
