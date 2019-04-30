@@ -1,20 +1,21 @@
 #!/usr/bin/env python
 
 import contextlib
-import odoorpc
+import getopt
+import json
 import netrc
 import os
+import re
 import requests
 import ssl
 import subprocess
 import sys
 import urllib2
 import warnings
-import getopt
-import re
-import requests
-import pprint
-import json
+
+from pprint import pprint
+
+import odoorpc
 
 
 # get login details from netRC file
@@ -63,30 +64,56 @@ for i in range(5):
 
 therp_project_obj = therp_odoo.env['project.project']
 therp_task_obj = therp_odoo.env['project.task']
-therp_gj_user_id = therp_odoo.env['res.users'].search([
+therp_user_obj = therp_odoo.env['res.users']
+therp_gj_user_id = therp_user_obj.search([
     ('login', '=', 'gj@sunflowerweb.nl')
 ], limit=1)
+if not therp_gj_user_id:
+    print 'GJ not found!'
+    sys.exit(1)
 therp_relevant_user_ids = [therp_odoo.env.uid]
-if therp_gj_user_id:
-    therp_relevant_user_ids.append(therp_gj_user_id[0])
-print 'Relevant user ids Therp: {}'.format(therp_relevant_user_ids)
+therp_relevant_user_ids.append(therp_gj_user_id[0])
+therp_relevant_users = therp_user_obj.read(therp_relevant_user_ids, ['name'])
+print 'Relevant user ids Therp:'
+pprint(therp_relevant_users)
 
-sfit_issue_obj = sfit_odoo.env['project.issue']
-sfit_project_obj = sfit_odoo.env['project.project']
-
-# Check for relevant tasks at Therp
+# Find relevant projects
 therp_project_ids = therp_project_obj.search([
     '|',
     ('name', 'ilike', 'Regio%'),
     ('name', 'ilike', 'SV%')
 ])
+therp_projects = therp_project_obj.read(therp_project_ids, ['name'])
+print 'Projects Therp:'
+pprint(therp_projects)
+
+# Find relevant project stages
+therp_stage_obj = therp_odoo.env['project.task.type']
+stage_ids = list(set().union(*[
+    data['type_ids']
+    for data in therp_project_obj.read(therp_project_ids, ['type_ids'])
+]))
+stage_ids = therp_stage_obj.search([
+    ('id', 'in', stage_ids),
+    ('name', 'in', ['Ontwikkeling', 'Ontwerp'])
+])
+stages = therp_stage_obj.read(stage_ids, ['name'])
+print 'Stages Therp:'
+pprint(stages)
+if len(stage_ids) < 2:
+    print 'Need at least two stages, maybe the names have changed?'
+    sys.exit(1)
+
+# Find relevant tasks
 therp_task_ids = therp_task_obj.search([
     ('project_id', 'in', therp_project_ids),
     ('stage_id.state', 'not in', ['done', 'cancelled']),
+    ('stage_id', 'in', stage_ids),
     ('user_id', 'in', therp_relevant_user_ids)
 ])
 
 # Subtract tasks already imported
+sfit_issue_obj = sfit_odoo.env['project.issue']
 sfit_issue_ids = sfit_issue_obj.search([
     ('remote_id', 'in', therp_task_ids),
 ])
@@ -95,6 +122,7 @@ sfit_remote_ids = [remote.get('remote_id') for remote in sfit_remote_ids]
 tasks_to_sfit = set(therp_task_ids) - set(sfit_remote_ids)
 
 # find id of our internal Therp project
+sfit_project_obj = sfit_odoo.env['project.project']
 therp_project_id = sfit_project_obj.search([
     ('name', 'ilike', '%Therp%')
 ])
@@ -111,16 +139,15 @@ print "Therp project found, id = {}, account = {}".format(
 
 # List of tasks to import from Therp  
 print 'tasks to be copied from Therp:'
-pprint.pprint(list(tasks_to_sfit))
+pprint(list(tasks_to_sfit))
 therp_task_info = therp_task_obj.browse(tasks_to_sfit).read([
-    'name', 'description', 'project_id'
+    'code', 'name', 'description', 'project_id'
 ])
 
-print 'Therp',
 for remote in therp_task_info:
     print '.',
     new_issue = sfit_issue_obj.create({
-        'name': u'Therp #{} {}'.format(remote['id'], remote['name']),
+        'name': u'Therp #{} {}'.format(remote['code'], remote['name']),
         'description': remote['description'],
         'remote_id': remote['id'],
         'project_id': therp_project_id,
