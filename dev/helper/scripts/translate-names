@@ -1,0 +1,109 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import argparse
+import contextlib
+import getopt
+import json
+import math
+import netrc
+import odoorpc
+import os
+import re
+import requests
+import ssl
+import subprocess
+import sys
+import time
+import urllib2
+import warnings
+from datetime import date, timedelta
+from dateutil.relativedelta import relativedelta
+from pprint import pprint
+
+# get login details from netRC file
+netrc_info = netrc.netrc()
+auth_odoosunflower = netrc_info.authenticators('odoosunflower')
+if not auth_odoosunflower:
+    print "In your $HOME/.netrc file place:"
+    print "machine odoosunflower login myuser password mypassword"
+    sys.exit(0)
+odoo_username, odoo_host, odoo_password = auth_odoosunflower
+auth_odootherp = netrc_info.authenticators('odootherp')
+if not auth_odootherp:
+    print "In your $HOME/.netrc file place:"
+    print "machine odootherp login myuser password mypassword"
+    sys.exit(0)
+therp_username, therp_host, therp_password = auth_odootherp
+
+# create a context to connect without checking for https cert
+ctx = ssl.create_default_context()
+ctx.check_hostname = False
+ctx.verify_mode = ssl.CERT_NONE
+opener = urllib2.build_opener(urllib2.HTTPSHandler(context=ctx))
+
+for i in range(5):
+    try:
+        therp_odoo = odoorpc.ODOO(
+            'helpdesk.therp.nl',
+            protocol='jsonrpc+ssl', port=443, opener=opener)
+        therp_odoo.login(
+            'odointprd10-helpdesk',
+            therp_username, therp_password)
+    except (ssl.SSLError, urllib2.URLError):
+        continue
+
+for i in range(5):
+    try:
+        sfit_odoo = odoorpc.ODOO(
+            'sunflower.1systeem.nl',
+            protocol='jsonrpc+ssl', port=443, opener=opener)
+        sfit_odoo.login(
+            'sunflowerdatabase',
+            odoo_username, odoo_password)
+    except (ssl.SSLError, urllib2.URLError):
+        continue
+
+# Find issues that are coupled to remote
+local_issue_obj = sfit_odoo.env['project.issue']
+issue_ids = local_issue_obj.search([
+    ('remote_id', '>', 0),
+])
+issues = local_issue_obj.read(issue_ids, ['name', 'remote_id'])
+remote_ids = [issue['remote_id'] for issue in issues]
+
+# Get translation table from remote_id to 'code'
+therp_task_obj = therp_odoo.env['project.task']
+task_ids = therp_task_obj.search([
+    ('id', 'in', remote_ids)
+])
+tasks = therp_task_obj.read(task_ids, ['code'])
+code_trans = dict((
+    task['id'],
+    int(filter(lambda x: x.isdigit(), task['code'])),
+) for task in tasks)
+
+# Translating issues
+for issue in issues:
+    try:
+        remote_id = issue['remote_id']
+        code = code_trans[remote_id]
+        name = issue['name']
+        if str(code) in name:
+            continue
+        if str(remote_id) not in name:
+            print 'skipping:', name, remote_id, code
+            continue
+        print name, remote_id, code
+        new_name = name.replace(str(remote_id), str(code))
+        if str(code).isdigit() and int(code) < 1000:
+            new_name = new_name.replace('Therp #', 'Scrum #')
+        print '--->', new_name
+        #print '.',
+        #local_issue_obj.write(issue['id'], {
+        #    'remote_id': trans_id,
+        #})
+    except KeyError:
+        pass
+
+print
