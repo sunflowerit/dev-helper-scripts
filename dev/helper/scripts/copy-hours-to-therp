@@ -125,25 +125,33 @@ issue_trans = dict((r['id'], r['remote_id'] or r['remote_id']) for r in remote_i
 print "issue_ids", issue_ids
 print "remote_ids",remote_ids
 
-therp_issue_obj = therp_odoo.env['project.task']
+therp_task_obj = therp_odoo.env['project.task']
 therp_project_obj = therp_odoo.env['project.project']
 therp_hours_obj = therp_odoo.env['account.analytic.line']
 
 # get our projects id on the Therp
 project_ids = therp_project_obj.search([])
 # get the 'remote_ids'
-remote_issue_ids = [issue_trans.get(issue_id) for issue_id in issue_ids]
+remote_task_ids = [issue_trans.get(issue_id) for issue_id in issue_ids]
 # get Therp issue_id belong to sunfloweit and thier project_id
-therp_remote_ids = therp_issue_obj.search([('id','in',remote_issue_ids),('project_id','in',project_ids)])
-issue_project_id = therp_issue_obj.browse(therp_remote_ids).read(['project_id'])
+therp_remote_ids = therp_task_obj.search([
+    ('id', 'in', remote_task_ids),
+    ('project_id', 'in', project_ids)
+])
+task_project_id = therp_task_obj.read(therp_remote_ids, ['project_id'])
 # get the account_analytic_id for each project_id
 account_id = therp_project_obj.read(project_ids, ['analytic_account_id'])
 
 # [dict] return the project_id for 'issue_id'
-project_issue_trans = dict((r['id'], r['project_id'][0] or r['id']) for r in issue_project_id)
+project_issue_trans = dict(
+    (r['id'], r['project_id'][0] or r['id'])
+    for r in task_project_id
+)
 # [dict] return the analytic_account_id for project_id
 project_analytic_trans = dict(
-(r['id'], r['analytic_account_id'][0] or r['id']) for r in account_id)
+    (r['id'], r['analytic_account_id'][0] or r['id'])
+    for r in account_id
+)
 
 hour_data = []
 print 'Collecting information on hours to copy...'
@@ -164,13 +172,18 @@ for hour in hours_read:
         factor = 1.0
     else:
         factor = 0.5
+    if remote_id:
+        try:
+            task_info = therp_task_obj.browse([remote_id])
+        except odoorpc.error.RPCError:
+            remote_id = None
     amount = math.ceil(amount * factor * 4.0) * 0.25
     hour_data.append({
         'date': hour['date'],
         'unit_amount': amount,
         'user_id': therp_user_id,
         'project_id': project_id,
-        'task_id': remote_id if remote_id > 2000 else None,
+        'task_id': remote_id,
         'account_id': project_analytic_account_id,
         'journal_id': 6,
         'to_invoice': 1,
