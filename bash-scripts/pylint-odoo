@@ -5,16 +5,10 @@ if [ -d "../../parts" ]; then
   moduledir=.
   basedir=../..
 elif [ -d "../../../parts" ]; then
-  #execdir=..
-  #basedir=../..
-  #module=$(basename $(pwd))
   basedir=../../..
   moduledir=..
   module=$moduledir/$(basename $(pwd))
 elif [ -d "../../../../parts" ]; then
-  #execdir=../..
-  #basedir=../..
-  #module=$(cd .. && basename $(pwd))
   basedir=../../../..
   moduledir=../..
   module=$moduledir/$(cd .. && basename $(pwd))
@@ -23,8 +17,12 @@ else
   echo "Or from within a parts/xxxxx/xxxxx (module) folder"
   exit
 fi
-#msgtemplate="$moduledir/{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}"
+if [ -f "$HOME/.pylint.cfg" ]; then
+  pylintcfg="$HOME/.pylint.cfg"
+else
+  pylintcfg="$basedir/.pylint.cfg"
+fi
 msgtemplate="{abspath}:{line}: [{msg_id}({symbol}), {obj}] {msg}"
 set -x
-( cd $execdir && pylint --msg-template="$msgtemplate" --rcfile=$basedir/.pylint.cfg --init-hook="import sys; sys.path.append('$basedir/parts/odoo')" --load-plugins=pylint_odoo $module )
+( cd $execdir && pylint --msg-template="$msgtemplate" --rcfile=$pylintcfg --init-hook="import sys; sys.path.append('$basedir/parts/odoo')" --load-plugins=pylint_odoo $module )
 
