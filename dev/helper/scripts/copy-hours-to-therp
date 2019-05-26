@@ -123,7 +123,7 @@ remote_ids = issue_obj.browse(issue_ids).read(['remote_id'])
 issue_trans = dict((r['id'], r['remote_id'] or r['remote_id']) for r in remote_ids)
 
 print "issue_ids", issue_ids
-print "remote_ids",remote_ids
+print "remote_ids", remote_ids
 
 therp_task_obj = therp_odoo.env['project.task']
 therp_project_obj = therp_odoo.env['project.project']
@@ -167,7 +167,7 @@ for hour in hours_read:
     if "kevin" in user_name_lower:
         factor = 0.25
     elif "gijs" in user_name_lower:
-        factor = 0.75
+        factor = 1.0
     elif "tom" in user_name_lower:
         factor = 1.0
     else:
@@ -204,7 +204,8 @@ therp_hours_domain = [
     ('date', '<=', date_end_str),
     ('user_id', '=', therp_user_id),
     ('project_id', '!=', reiskosten_proj_id),
-] 
+    ]
+
 therp_hours_ids = therp_hours_obj.search(therp_hours_domain)
 if therp_hours_ids:
     sys.stdout.write("Found. Deleting...")
