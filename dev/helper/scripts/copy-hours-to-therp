@@ -133,7 +133,7 @@ therp_hours_obj = therp_odoo.env['account.analytic.line']
 project_ids = therp_project_obj.search([])
 # get the 'remote_ids'
 remote_task_ids = [issue_trans.get(issue_id) for issue_id in issue_ids]
-# get Therp issue_id belong to sunfloweit and thier project_id
+# get Therp task ids that belong to Sunflower IT and their project_id
 therp_remote_ids = therp_task_obj.search([
     ('id', 'in', remote_task_ids),
     ('project_id', 'in', project_ids)
@@ -161,8 +161,8 @@ for hour in hours_read:
     amount = hour['unit_amount']
     issue_id = hour['issue_id'][0]
     remote_id = issue_trans.get(issue_id, False)
-    project_id = project_issue_trans.get(remote_id, 152)
-    project_analytic_account_id = project_analytic_trans.get(project_id, 304)
+    project_id = project_issue_trans.get(remote_id, 291)
+    project_analytic_account_id = project_analytic_trans.get(project_id)
     user_name_lower = user_name.lower()
     if "kevin" in user_name_lower:
         factor = 0.25
