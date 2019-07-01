@@ -95,13 +95,13 @@ stage_ids = list(set().union(*[
 ]))
 stage_ids = therp_stage_obj.search([
     ('id', 'in', stage_ids),
-    ('name', 'in', ['Ontwikkeling', 'Ontwerp'])
+    ('name', 'in', ['Specificatie Klaar', 'Ontwikkeling', 'Ontwerp'])
 ])
 stages = therp_stage_obj.read(stage_ids, ['name'])
 print 'Stages Therp:'
 pprint(stages)
-if len(stage_ids) < 2:
-    print 'Need at least two stages, maybe the names have changed?'
+if len(stage_ids) < 3:
+    print 'Need at least three stages, maybe the names have changed?'
     sys.exit(1)
 
 # Find relevant tasks
