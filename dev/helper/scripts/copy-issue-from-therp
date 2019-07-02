@@ -77,24 +77,12 @@ therp_relevant_users = therp_user_obj.read(therp_relevant_user_ids, ['name'])
 print 'Relevant user ids Therp:'
 pprint(therp_relevant_users)
 
-# Find relevant projects
-therp_project_ids = therp_project_obj.search([
-    '|',
-    ('name', 'ilike', 'Regio%'),
-    ('name', 'ilike', 'SV%')
-])
-therp_projects = therp_project_obj.read(therp_project_ids, ['name'])
-print 'Projects Therp:'
-pprint(therp_projects)
+# Therp project ids
+therp_project_ids = [24, 54, 152, 187, 291]
 
 # Find relevant project stages
 therp_stage_obj = therp_odoo.env['project.task.type']
-stage_ids = list(set().union(*[
-    data['type_ids']
-    for data in therp_project_obj.read(therp_project_ids, ['type_ids'])
-]))
 stage_ids = therp_stage_obj.search([
-    ('id', 'in', stage_ids),
     ('name', 'in', ['Specificatie Klaar', 'Ontwikkeling', 'Ontwerp'])
 ])
 stages = therp_stage_obj.read(stage_ids, ['name'])
