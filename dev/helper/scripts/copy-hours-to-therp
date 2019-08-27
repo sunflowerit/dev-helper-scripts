@@ -164,8 +164,8 @@ for hour in hours_read:
     project_id = project_issue_trans.get(remote_id, 291)
     project_analytic_account_id = project_analytic_trans.get(project_id)
     user_name_lower = user_name.lower()
-    if "kevin" in user_name_lower:
-        factor = 0.25
+    if "kev" in user_name_lower:
+        factor = 0.5
     elif "gijs" in user_name_lower:
         factor = 1.0
     elif "tom" in user_name_lower:
