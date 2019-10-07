@@ -164,14 +164,16 @@ for hour in hours_read:
     project_id = project_issue_trans.get(remote_id, 291)
     project_analytic_account_id = project_analytic_trans.get(project_id)
     user_name_lower = user_name.lower()
-    if "kev" in user_name_lower:
+    if "ter" in user_name_lower:
+        factor = 0.5
+    elif "dan" in user_name_lower:
         factor = 0.5
     elif "gijs" in user_name_lower:
         factor = 1.0
     elif "tom" in user_name_lower:
         factor = 1.0
     else:
-        factor = 0.5
+        factor = 0.25
     if remote_id:
         try:
             task_info = therp_task_obj.browse([remote_id])
