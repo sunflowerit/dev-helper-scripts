@@ -82,13 +82,19 @@ therp_project_ids = [24, 54, 152, 187, 291]
 
 # Find relevant project stages
 therp_stage_obj = therp_odoo.env['project.task.type']
-stage_ids = therp_stage_obj.search([
-    ('name', 'in', ['Specificatie Klaar', 'Ontwikkeling', 'Ontwerp'])
-])
+stage_ids = therp_stage_obj.search([('name', 'in', [
+    'Specification done',
+    'Specificatie Klaar',
+    'Development',
+    'In Progress',
+    'Ontwikkeling',
+    'Analyse',
+    'Ontwerp',
+])])
 stages = therp_stage_obj.read(stage_ids, ['name'])
 print 'Stages Therp:'
 pprint(stages)
-if len(stage_ids) < 3:
+if len(stage_ids) < 4:
     print 'Need at least three stages, maybe the names have changed?'
     sys.exit(1)
 
