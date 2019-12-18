@@ -78,7 +78,7 @@ print 'Relevant user ids Therp:'
 pprint(therp_relevant_users)
 
 # Therp project ids
-therp_project_ids = [24, 54, 152, 187, 291]
+therp_project_ids = [24, 54, 152, 187, 285, 291]
 
 # Find relevant project stages
 therp_stage_obj = therp_odoo.env['project.task.type']
