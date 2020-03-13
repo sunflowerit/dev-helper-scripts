@@ -63,9 +63,7 @@ setup(
         'bash-scripts/set-version',
         'bash-scripts/translate-module',
         'dev/helper/scripts/anonymize_csv',
-        'dev/helper/scripts/copy-hours-to-therp',
-        'dev/helper/scripts/copy-issue-from-therp',
-        'dev/helper/scripts/issue',
+        'dev/helper/scripts/copy-hours-from-therp',
     ],
 
 )
