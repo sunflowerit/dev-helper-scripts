@@ -126,7 +126,7 @@ print 'Relevant users+values Therp:'
 pprint(therp_relevant_users)
 
 # get hours that we wrote in Therp
-first_day_of_current_month = (date.today() + relativedelta(days=40)).replace(day=1)
+first_day_of_current_month = (date.today() + relativedelta(days=7)).replace(day=1)
 date_start = first_day_of_current_month - relativedelta(months=1)
 date_end = first_day_of_current_month - timedelta(days=1)
 date_start_str = date_start.strftime('%Y-%m-%d')
@@ -174,7 +174,7 @@ for hour in hours_read:
     task_id = hour['task_id'] and hour['task_id'][0]
     name = hour['name']
     amount = hour['unit_amount']
-    name = "Therp #{}: {}".format(task_id, name)
+    name = u"Therp #{}: {}".format(task_id, name)
     user_id = hour['sfit_user_id']
     hour_data.append({
         'date': hour['date'],
