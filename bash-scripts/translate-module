@@ -66,7 +66,7 @@ dir=$(mktemp -d)
 ../../../bin/start_odoo \
   --log-level=error \
   --i18n-export=$dir/$module.po \
-  -l nl -d $db_name --modules=$module
+  --language=nl_NL -d $db_name --modules=$module
 # https://www.gnu.org/software/gettext/manual/html_node/Using-Compendia.html
 if [ ! -f "i18n/nl.po" ]; then
   echo Creating new translations...
