@@ -1,0 +1,64 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import argparse
+import contextlib
+import getopt
+import json
+import math
+import netrc
+import odoorpc
+import os
+import re
+import requests
+import ssl
+import subprocess
+import sys
+import time
+import urllib2
+import warnings
+from datetime import date, timedelta
+from dateutil.relativedelta import relativedelta
+from pprint import pprint
+
+# get login details from netRC file
+netrc_info = netrc.netrc()
+auth_odootherp = netrc_info.authenticators('odootherp')
+if not auth_odootherp:
+    print "In your $HOME/.netrc file place:"
+    print "machine odootherp login myuser password mypassword"
+    sys.exit(0)
+therp_username, therp_host, therp_password = auth_odootherp
+
+# create a context to connect without checking for https cert
+ctx = ssl.create_default_context()
+ctx.check_hostname = False
+ctx.verify_mode = ssl.CERT_NONE
+opener = urllib2.build_opener(urllib2.HTTPSHandler(context=ctx))
+
+for i in range(5):
+    try:
+        therp_odoo = odoorpc.ODOO(
+            'helpdesk.therp.nl',
+            protocol='jsonrpc+ssl', port=443, opener=opener)
+        therp_odoo.login(
+            'odointprd10-helpdesk',
+            therp_username, therp_password)
+    except (ssl.SSLError, urllib2.URLError):
+        continue
+
+try:
+    hours_obj = therp_odoo.env['account.analytic.line']
+    task_obj = therp_odoo.env['project.task']
+except KeyError:
+    print "Required objects not found on Therp instance."
+    sys.exit(1)
+
+# 8369
+from pprint import pprint; pprint(task_obj.search_read([
+    '|',
+    ['id', '=', 1],
+    '&',
+    ['stage_id.name', 'not ilike', '%Done%'],
+    ['stage_id.name', 'not ilike', '%Cancel%'],
+], ['id'], order='id desc'))
