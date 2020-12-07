@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 import argparse
@@ -15,7 +15,7 @@ import ssl
 import subprocess
 import sys
 import time
-import urllib2
+import urllib.request, urllib.error, urllib.parse
 import warnings
 from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
@@ -25,14 +25,18 @@ from pprint import pprint
 netrc_info = netrc.netrc()
 auth_odoosunflower = netrc_info.authenticators('odoosunflower')
 if not auth_odoosunflower:
-    print "In your $HOME/.netrc file place:"
-    print "machine odoosunflower login myuser password mypassword"
+    print(
+        "In your $HOME/.netrc file place:"
+         "machine odoosunflower login myuser password mypassword"
+    )
     sys.exit(0)
 odoo_username, odoo_host, odoo_password = auth_odoosunflower
 auth_odootherp = netrc_info.authenticators('odootherp')
 if not auth_odootherp:
-    print "In your $HOME/.netrc file place:"
-    print "machine odootherp login myuser password mypassword"
+    print(
+        "In your $HOME/.netrc file place:"
+        "machine odootherp login myuser password mypassword"
+    )
     sys.exit(0)
 therp_username, therp_host, therp_password = auth_odootherp
 
@@ -40,7 +44,7 @@ therp_username, therp_host, therp_password = auth_odootherp
 ctx = ssl.create_default_context()
 ctx.check_hostname = False
 ctx.verify_mode = ssl.CERT_NONE
-opener = urllib2.build_opener(urllib2.HTTPSHandler(context=ctx))
+opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx))
 
 for i in range(5):
     try:
@@ -50,7 +54,7 @@ for i in range(5):
         therp_odoo.login(
             'odointprd10-helpdesk',
             therp_username, therp_password)
-    except (ssl.SSLError, urllib2.URLError):
+    except (ssl.SSLError, urllib.error.URLError):
         continue
 
 for i in range(5):
@@ -61,7 +65,7 @@ for i in range(5):
         sfit_odoo.login(
             'sunflowerdatabase',
             odoo_username, odoo_password)
-    except (ssl.SSLError, urllib2.URLError):
+    except (ssl.SSLError, urllib.error.URLError):
         continue
 
 # Find id of Therp project in our system
@@ -69,14 +73,14 @@ project_obj = sfit_odoo.env['project.project']
 therp_project_ids = project_obj.search(
     [('name', 'ilike', '%Therp%')])
 if not therp_project_ids:
-    print "Therp project not found in SFIT Odoo"
+    print("Therp project not found in SFIT Odoo")
     sys.exit(1)
 therp_project_id = therp_project_ids[0]
 therp_project_read = project_obj.browse(therp_project_id).read(
     ['analytic_account_id'])[0]
 therp_account_id = therp_project_read['analytic_account_id'][0]
-print "Therp project found, id = {}".format(therp_project_id)
-print "Analytic account id = {}".format(therp_account_id)
+print("Therp project found, id = {}".format(therp_project_id))
+print("Analytic account id = {}".format(therp_account_id))
 
 # Find ids of our users in Therp system
 therp_task_obj = therp_odoo.env['project.task']
@@ -89,26 +93,26 @@ therp_relevant_user_ids = therp_user_obj.search([
 therp_relevant_users = dict(
     (d['id'], d) for d in therp_user_obj.read(
         therp_relevant_user_ids, ['name', 'email']))
-print 'Relevant users Therp:'
+print('Relevant users Therp:')
 pprint(therp_relevant_users)
 if len(therp_relevant_users) < 3:
-    print 'At least 4 SFIT-ers should be found'
+    print('At least 4 SFIT-ers should be found')
     sys.exit(1)
 
 # Match them with local system and find product per user
 sfit_user_obj = sfit_odoo.env['res.users']
 sfit_empl_obj = sfit_odoo.env['hr.employee']
-for therp_user in therp_relevant_users.values():
+for therp_user in list(therp_relevant_users.values()):
     sfit_user = sfit_user_obj.search([('email', '=', therp_user['email'])])
     if not sfit_user:
-        print "user '", therp_user['email'], "not found in SFIT system"
+        print("user '", therp_user['email'], "not found in SFIT system")
         sys.exit(1)
     sfit_empl = sfit_empl_obj.search_read([('user_id', '=', sfit_user)], ['product_id'])
     if not sfit_empl:
-        print "employee for '", therp_user['email'], "not found in SFIT system"
+        print("employee for '", therp_user['email'], "not found in SFIT system")
         sys.exit(1)
     if len(sfit_empl) > 1:
-        print "more than one employee for '", therp_user['email'], "in SFIT system"
+        print("more than one employee for '", therp_user['email'], "in SFIT system")
         sys.exit(1)
     therp_user['sfit_id'] = sfit_user[0]
     defaults = sfit_odoo.execute(
@@ -122,7 +126,7 @@ for therp_user in therp_relevant_users.values():
         or sfit_prod.categ_id.property_account_expense_categ.id
     therp_user['journal_id'] = default_journal_id
     therp_user['product_id'] = sfit_prod_id
-print 'Relevant users+values Therp:'
+print('Relevant users+values Therp:')
 pprint(therp_relevant_users)
 
 # get hours that we wrote in Therp
@@ -131,13 +135,13 @@ date_start = first_day_of_current_month - relativedelta(months=1)
 date_end = first_day_of_current_month - timedelta(days=1)
 date_start_str = date_start.strftime('%Y-%m-%d')
 date_end_str = date_end.strftime('%Y-%m-%d')
-print "Therp hours between {:%d %b %Y} - {:%d %b %Y}".format(
-    date_start, date_end)
+print("Therp hours between {:%d %b %Y} - {:%d %b %Y}".format(
+    date_start, date_end))
 try:
     hours_obj = therp_odoo.env['account.analytic.line']
     task_obj = therp_odoo.env['project.task']
 except KeyError:
-    print "Required objects not found on Therp instance."
+    print("Required objects not found on Therp instance.")
     sys.exit(1)
 hours_domain = [
     ('user_id', 'in', therp_relevant_user_ids),
@@ -146,17 +150,17 @@ hours_domain = [
 ]
 hours_ids = hours_obj.search(hours_domain, order='date asc')
 if not hours_ids:
-    print "No hours found for this month."
+    print("No hours found for this month.")
     sys.exit(0)
 hours = hours_obj.browse(hours_ids)
 hours_read = hours.read(['date', 'task_id', 'name', 'user_id', 'unit_amount'])
-hours_readable = [u'{} #{:4d} {:4.2f} [{}] {:60.60}'.format(
+hours_readable = ['{} #{:4d} {:4.2f} [{}] {:60.60}'.format(
     a['date'], a['task_id'] and a['task_id'][0],
     a['unit_amount'], a['user_id'][1], a['name'])
     for a in hours_read]
-print(u"\n".join(hours_readable))
+print(("\n".join(hours_readable)))
 hours_total = sum([a.unit_amount for a in hours])
-print "TOTAL: {}".format(hours_total)
+print("TOTAL: {}".format(hours_total))
 
 # Finding sfit_user_id, journal_id, product_id for each line
 for hour in hours_read:
@@ -169,12 +173,12 @@ for hour in hours_read:
 
 # Prepare them for copy into our system
 hour_data = []
-print 'Collecting information on hours to copy...'
+print('Collecting information on hours to copy...')
 for hour in hours_read:
     task_id = hour['task_id'] and hour['task_id'][0]
     name = hour['name']
     amount = hour['unit_amount']
-    name = u"Therp #{}: {}".format(task_id, name)
+    name = "Therp #{}: {}".format(task_id, name)
     user_id = hour['sfit_user_id']
     hour_data.append({
         'date': hour['date'],
@@ -199,15 +203,15 @@ therp_hours_domain = [
 therp_hours_ids = sfit_hours_obj.search(therp_hours_domain)
 if therp_hours_ids:
     sys.stdout.write("Found. Deleting...")
-    sys.stdout.write(unicode(therp_hours_ids))
+    sys.stdout.write(str(therp_hours_ids))
     sys.stdout.flush()
     sfit_hours_obj.unlink(therp_hours_ids)
-    print 'Done'
+    print('Done')
 
-print 'Creating hour records at Therp...'
+print('Creating hour records at Therp...')
 for record in hour_data:
     pprint(record)
     sys.stdout.flush()
     sfit_hours_obj.create(record)
 
-print "Hours copied! Check your work at https://sunflower.1systeem.nl/web#page=0&limit=80&view_type=list&model=hr.analytic.timesheet&menu_id=311&action=415"
+print("Hours copied! Check your work at https://sunflower.1systeem.nl/web#page=0&limit=80&view_type=list&model=hr.analytic.timesheet&menu_id=311&action=415")
