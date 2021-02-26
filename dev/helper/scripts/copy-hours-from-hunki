@@ -1,0 +1,223 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import argparse
+import contextlib
+import getopt
+import json
+import math
+import netrc
+import odoorpc
+import os
+import re
+import requests
+import ssl
+import subprocess
+import sys
+import time
+import urllib.request, urllib.error, urllib.parse
+import warnings
+from datetime import date, timedelta
+from dateutil.relativedelta import relativedelta
+from pprint import pprint
+
+# get login details from netRC file
+netrc_info = netrc.netrc()
+auth_odoosunflower = netrc_info.authenticators("odoosunflower")
+if not auth_odoosunflower:
+    print(
+        "In your $HOME/.netrc file place:"
+        "machine odoosunflower login myuser password mypassword"
+    )
+    sys.exit(0)
+odoo_username, odoo_host, odoo_password = auth_odoosunflower
+auth_odoohunki = netrc_info.authenticators("odoohunki")
+if not auth_odoohunki:
+    print(
+        "In your $HOME/.netrc file place:"
+        "machine odoohunki login myuser password mypassword"
+    )
+    sys.exit(0)
+hunki_username, hunki_host, hunki_password = auth_odoohunki
+
+# create a context to connect without checking for https cert
+ctx = ssl.create_default_context()
+ctx.check_hostname = False
+ctx.verify_mode = ssl.CERT_NONE
+opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx))
+
+for i in range(5):
+    try:
+        hunki_odoo = odoorpc.ODOO(
+            "hunki-enterprises.com", protocol="jsonrpc+ssl", port=443, opener=opener
+        )
+        hunki_odoo.login("hunki", hunki_username, hunki_password)
+    except (ssl.SSLError, urllib.error.URLError):
+        continue
+
+for i in range(5):
+    try:
+        sfit_odoo = odoorpc.ODOO(
+            "sunflower.1systeem.nl", protocol="jsonrpc+ssl", port=443, opener=opener
+        )
+        sfit_odoo.login("sunflowerdatabase", odoo_username, odoo_password)
+    except (ssl.SSLError, urllib.error.URLError):
+        continue
+
+# Find id of hunki project in our system
+project_obj = sfit_odoo.env["project.project"]
+hunki_project_ids = project_obj.search([("name", "ilike", "%hunki%")])
+if not hunki_project_ids:
+    print("hunki project not found in SFIT Odoo")
+    sys.exit(1)
+hunki_project_id = hunki_project_ids[0]
+hunki_project_read = project_obj.browse(hunki_project_id).read(["analytic_account_id"])[
+    0
+]
+hunki_account_id = hunki_project_read["analytic_account_id"][0]
+print("hunki project found, id = {}".format(hunki_project_id))
+print("Analytic account id = {}".format(hunki_account_id))
+
+# Find ids of our users in hunki system
+hunki_task_obj = hunki_odoo.env["project.task"]
+hunki_user_obj = hunki_odoo.env["res.users"]
+hunki_relevant_user_ids = hunki_user_obj.search(
+    [("login", "ilike", "%@sunflowerweb.nl")]
+)
+hunki_relevant_users = dict(
+    (d["id"], d)
+    for d in hunki_user_obj.read(hunki_relevant_user_ids, ["name", "email"])
+)
+print("Relevant users hunki:")
+pprint(hunki_relevant_users)
+if len(hunki_relevant_users) < 2:
+    print("At least 2 SFIT-ers should be found")
+    sys.exit(1)
+
+# Match them with local system and find product per user
+sfit_user_obj = sfit_odoo.env["res.users"]
+sfit_empl_obj = sfit_odoo.env["hr.employee"]
+for hunki_user in list(hunki_relevant_users.values()):
+    sfit_user = sfit_user_obj.search([("name", "=", hunki_user["name"])])
+    if not sfit_user:
+        print("user '", hunki_user["name"], "' not found in SFIT system")
+        sys.exit(1)
+    sfit_empl = sfit_empl_obj.search_read([("user_id", "=", sfit_user)], ["product_id"])
+    if not sfit_empl:
+        print("employee for '", hunki_user["name"], "' not found in SFIT system")
+        sys.exit(1)
+    if len(sfit_empl) > 1:
+        print("more than one employee for '", hunki_user["name"], "' in SFIT system")
+        sys.exit(1)
+    hunki_user["sfit_id"] = sfit_user[0]
+    defaults = sfit_odoo.execute(
+        "hr.analytic.timesheet", "default_get", ["product_id", "journal_id"]
+    )
+    default_product_id = defaults["product_id"]
+    default_journal_id = defaults["journal_id"]
+    sfit_prod_id = sfit_empl[0]["product_id"][0] or default_product_id
+    sfit_prod = sfit_odoo.env["product.product"].browse(sfit_prod_id)
+    hunki_user["general_account_id"] = (
+        sfit_prod.property_account_expense.id
+        or sfit_prod.categ_id.property_account_expense_categ.id
+    )
+    hunki_user["journal_id"] = default_journal_id
+    hunki_user["product_id"] = sfit_prod_id
+print("Relevant users+values hunki:")
+pprint(hunki_relevant_users)
+
+# get hours that we wrote in hunki
+first_day_of_current_month = (date.today() + relativedelta(days=7)).replace(day=1)
+date_start = first_day_of_current_month - relativedelta(months=1)
+date_end = first_day_of_current_month - timedelta(days=1)
+date_start_str = date_start.strftime("%Y-%m-%d")
+date_end_str = date_end.strftime("%Y-%m-%d")
+print("hunki hours between {:%d %b %Y} - {:%d %b %Y}".format(date_start, date_end))
+try:
+    hours_obj = hunki_odoo.env["account.analytic.line"]
+    task_obj = hunki_odoo.env["project.task"]
+except KeyError:
+    print("Required objects not found on hunki instance.")
+    sys.exit(1)
+hours_domain = [
+    ("user_id", "in", hunki_relevant_user_ids),
+    ("date", ">=", date_start_str),
+    ("date", "<=", date_end_str),
+]
+hours_ids = hours_obj.search(hours_domain, order="date asc")
+if not hours_ids:
+    print("No hours found for this month.")
+    sys.exit(0)
+hours = hours_obj.browse(hours_ids)
+hours_read = hours.read(["date", "task_id", "name", "user_id", "unit_amount"])
+hours_readable = [
+    "{} #{:4d} {:4.2f} [{}] {:60.60}".format(
+        a["date"],
+        a["task_id"] and a["task_id"][0],
+        a["unit_amount"],
+        a["user_id"][1],
+        a["name"],
+    )
+    for a in hours_read
+]
+print(("\n".join(hours_readable)))
+hours_total = sum([a.unit_amount for a in hours])
+print("TOTAL: {}".format(hours_total))
+
+# Finding sfit_user_id, journal_id, product_id for each line
+for hour in hours_read:
+    user_id = hour["user_id"][0]
+    _dict = hunki_relevant_users[user_id]
+    hour["sfit_user_id"] = _dict["sfit_id"]
+    hour["journal_id"] = _dict["journal_id"]
+    hour["product_id"] = _dict["product_id"]
+    hour["general_account_id"] = _dict["general_account_id"]
+
+# Prepare them for copy into our system
+hour_data = []
+print("Collecting information on hours to copy...")
+for hour in hours_read:
+    task_id = hour["task_id"] and hour["task_id"][0]
+    name = hour["name"]
+    amount = hour["unit_amount"]
+    name = "hunki #{}: {}".format(task_id, name)
+    user_id = hour["sfit_user_id"]
+    hour_data.append(
+        {
+            "date": hour["date"],
+            "unit_amount": amount,
+            "user_id": user_id,
+            "account_id": hunki_account_id,
+            "general_account_id": hour["general_account_id"],
+            "product_id": hour["product_id"],
+            "journal_id": hour["journal_id"],
+            "to_invoice": 1,
+            "name": name,
+        }
+    )
+pprint(hour_data)
+
+# delete previous hours
+sfit_hours_obj = sfit_odoo.env["hr.analytic.timesheet"]
+hunki_hours_domain = [
+    ("date", ">=", date_start_str),
+    ("date", "<=", date_end_str),
+    ("account_id", "=", hunki_account_id),
+]
+hunki_hours_ids = sfit_hours_obj.search(hunki_hours_domain)
+if hunki_hours_ids:
+    sys.stdout.write("Found. Deleting...")
+    sys.stdout.write(str(hunki_hours_ids))
+    sys.stdout.flush()
+    sfit_hours_obj.unlink(hunki_hours_ids)
+    print("Done")
+
+print("Creating hour records at hunki...")
+for record in hour_data:
+    pprint(record)
+    sys.stdout.flush()
+    sfit_hours_obj.create(record)
+
+print(
+    "Hours copied! Check your work at https://sunflower.1systeem.nl/web#page=0&limit=80&view_type=list&model=hr.analytic.timesheet&menu_id=311&action=415"
+)
